@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # Base de datos para el Microservicio de Tareas
+  db-tasks:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: johndoe
+      POSTGRES_PASSWORD: randompassword
+      POSTGRES_DB: db_tasks
+    ports:
+      - "5433:5432" # El puerto 5432 del contenedor sale al 5433 de tu PC
+
+  # Base de datos para el Microservicio de Proyectos
+  db-projects:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: user_projects
+      POSTGRES_PASSWORD: password_projects
+      POSTGRES_DB: db_projects
+    ports:
+      - "5434:5432" # El puerto 5432 del contenedor sale al 5434 de tu PC
+
+networks:
+  innovatech-network:
+    driver: bridge

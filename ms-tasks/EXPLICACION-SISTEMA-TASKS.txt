@@ -1,0 +1,43 @@
+==========================================================================
+   EXPLICACIÓN ARQUITECTÓNICA Y FUNCIONAL DEL MICROSERVICIO
+==========================================================================
+Este documento explica el "por qué" y el "cómo" de la solución implementada.
+
+1. ARQUITECTURA DE CAPAS (Layered Architecture)
+-----------------------------------------------
+Hemos dividido el código en 3 capas para que sea mantenible:
+- Capa de Entrada (App/Routes): Recibe la señal de internet.
+- Capa de Lógica (Controllers): Valida que los datos de la petición sean correctos.
+- Capa de Negocio/Datos (Services + Prisma): Es la única que toca la base de datos.
+  Esto permite que si mañana cambiamos Postgres por MongoDB, solo toquemos el Service.
+
+2. EL ROL DE PRISMA ORM
+-----------------------
+Prisma actúa como un "mapeador". Transforma filas de una tabla de base de datos 
+en objetos de JavaScript/TypeScript. 
+- Type Safety: Al usar la versión 5.10.2, TypeScript nos avisa si intentamos 
+  guardar un texto en un campo que debería ser fecha.
+
+3. COMUNICACIÓN RESTful
+-----------------------
+El microservicio sigue los principios REST:
+- Stateless: Cada petición es independiente.
+- Métodos Semánticos: Usamos POST para crear y PATCH para editar solo una parte, 
+  lo que ahorra recursos al no tener que enviar todo el objeto de nuevo.
+
+4. ¿POR QUÉ DOCKER?
+-------------------
+Docker nos permite crear un "contenedor" que tiene exactamente la misma versión 
+de PostgreSQL que todos los desarrolladores necesitan. Evita el famoso: 
+"En mi computadora sí funciona, pero en la tuya no".
+
+5. FLUJO DE DATOS (DATA FLOW)
+-----------------------------
+Postman -> Express (Route) -> Controller -> Service -> Prisma -> Docker (DB).
+La respuesta viaja de vuelta por el mismo camino hasta llegar a tu pantalla.
+
+6. CONCLUSIÓN
+-------------
+Este sistema es escalable. Podríamos añadir autenticación, validaciones con Zod 
+o documentación con Swagger siguiendo la misma estructura de carpetas.
+==========================================================================
