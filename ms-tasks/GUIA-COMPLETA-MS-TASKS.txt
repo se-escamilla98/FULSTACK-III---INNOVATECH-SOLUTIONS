@@ -1,7 +1,7 @@
 ==========================================================================
    GUÍA DEFINITIVA DE IMPLEMENTACIÓN: MICROSERVICIO DE TAREAS (MS-TASKS)
 ==========================================================================
-Autor: Gemini p/ Livan
+Autor: Livan
 Fecha: Mayo 2026
 Objetivo: Configuración, instanciación y despliegue desde cero.
 

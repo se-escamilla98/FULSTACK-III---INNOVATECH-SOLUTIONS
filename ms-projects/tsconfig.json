@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    /* File Layout */
+    "rootDir": "./src",            // Definimos que el código fuente está en /src
+    "outDir": "./dist",            // Definimos que el código compilado irá a /dist
+
+    /* Interoperabilidad */
+    "module": "CommonJS",          // Cambiamos a CommonJS para mejor compatibilidad con ts-node-dev y Express
+    "target": "ES2020",            // Versión moderna pero estable de JS
+    "esModuleInterop": true,       // Permite importar módulos de JS tradicional (como express)
+    "forceConsistentCasingInFileNames": true,
+
+    /* Strict Options */
+    "strict": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": ["src/**/*"],         // Le decimos a TS que solo mire dentro de src
+  "exclude": ["node_modules"]      // Evitamos que intente compilar las librerías
+}

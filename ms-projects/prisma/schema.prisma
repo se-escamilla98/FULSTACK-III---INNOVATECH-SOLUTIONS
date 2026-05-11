@@ -1,0 +1,20 @@
+// 1. El bloque de configuración para el cliente de JS/TS
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 2. El bloque de la fuente de datos (ESTO ES LO QUE FALTA)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 3. Tus modelos (Project, etc.)
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  status      String   @default("PLANNED")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

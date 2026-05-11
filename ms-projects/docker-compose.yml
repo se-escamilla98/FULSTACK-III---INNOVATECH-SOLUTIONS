@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  db-projects:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: projectpassword
+      POSTGRES_DB: ms_projects_db
+    ports:
+      - "5435:5432" # Mapeo correcto: Tu PC (5435) -> Contenedor (5432)
