@@ -51,13 +51,17 @@ export class TaskService {
     }
   }
   async deleteTask(id: string): Promise<Task> {
-  try {
-    return await prisma.task.delete({
-      where: { id }
-    });
-  } catch (error) {
-    throw new Error(`No se pudo eliminar la tarea con ID ${id}. Es posible que no exista.`);
+    try {
+      return await prisma.task.delete({
+        where: { id }
+      });
+    } catch (error) {
+      throw new Error(`No se pudo eliminar la tarea con ID ${id}. Es posible que no exista.`);
+    }
   }
-}
+
+  async getTaskById(id: string): Promise<Task | null> {
+    return await prisma.task.findUnique({ where: { id } });
+  }
 
 }

@@ -1,11 +1,12 @@
 import { PrismaClient, Project } from '@prisma/client';
 import { ProjectFactory } from '../factorie/project.factory';
+import axios from 'axios';
 
 const prisma = new PrismaClient();
 
 export class ProjectService {
   
-  // Registrar nuevos proyectos [cite: 16]
+  // Registrar nuevos proyectos 
   async createProject(data: { name: string; description: string }): Promise<Project> {
     const projectData = ProjectFactory.create(data.name, data.description);
     return await prisma.project.create({
@@ -13,17 +14,17 @@ export class ProjectService {
     });
   }
 
-  // Consultar listado de proyectos [cite: 17]
+  // Consultar listado de proyectos 
   async getAllProjects(): Promise<Project[]> {
     return await prisma.project.findMany();
   }
 
-  // Consultar información detallada [cite: 18]
+  // Consultar información detallada [
   async getProjectById(id: string): Promise<Project | null> {
     return await prisma.project.findUnique({ where: { id } });
   }
 
-  // Cambiar el estado de un proyecto [cite: 20]
+  // Cambiar el estado de un proyecto 
   async updateStatus(id: string, newStatus: string): Promise<Project> {
     // Regla de negocio: No se puede finalizar si hay tareas pendientes 
     if (newStatus === "COMPLETED") {
@@ -40,7 +41,16 @@ export class ProjectService {
   }
 
   private async checkPendingTasks(projectId: string): Promise<boolean> {
-    // Nota: Aquí es donde se integrará con el MS de Tareas más adelante [cite: 32, 59]
-    return false; 
+    try {
+      const response = await axios.get(
+        `http://localhost:3001/tasks/project/${projectId}`
+      );
+        const tasks = response.data;
+        return tasks.some((task: any) => task.status === 'PENDING');
+      } catch (error) {
+        // Si MS-Tasks está caído, bloqueamos por seguridad
+        console.error('MS-Tasks no disponible:', error);
+        return true; // ← bloquea el cambio a COMPLETED
+      }
   }
 }
