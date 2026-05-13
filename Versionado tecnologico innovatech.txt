@@ -1,0 +1,45 @@
+INNOVATECH SOLUTIONS - REPORTE DE STACK TECNOLOGICO
+=================================================
+Este documento detalla las versiones exactas y componentes del stack 
+utilizado en el desarrollo de los microservicios.
+
+1. CORE RUNTIME & LENGUAJE
+--------------------------
+- Node.js: v22.11.0 (LTS "Jod") - Recomendado para estabilidad.
+- npm: v10.x.x (Viene con Node 22).
+- TypeScript: v5.x o v6.x - Lenguaje principal con tipado estricto.
+
+2. FRAMEWORK & MIDDLEWARE (BACKEND)
+-----------------------------------
+- Express: v4.19.2 - Framework web para los microservicios.
+- Dotenv: v16.x.x - Gestion de variables de entorno (.env).
+- Cors: v2.8.x - Seguridad para peticiones entre servicios.
+
+3. PERSISTENCIA Y ORM (BASE DE DATOS)
+-------------------------------------
+- Prisma ORM: v5.x o v6.x - Mapeo de objetos a base de datos.
+- PostgreSQL: v15.0 (Imagen Docker) - Motor de base de datos relacional.
+- Prisma Client: @prisma/client (Generado segun la version de Prisma).
+
+4. INFRAESTRUCTURA & CONTENEDORES
+---------------------------------
+- Docker Desktop: v4.x+ - Entorno de virtualizacion.
+- Docker Compose: v3.8 (Schema version) - Orquestacion de bases de datos.
+- WSL 2: Subsistema Linux para Windows (Requisito para Docker).
+
+5. DOCUMENTACION DE API
+-----------------------
+- Swagger UI Express: v5.x.x - Interfaz visual de la documentacion.
+- Swagger JSDoc: v6.x.x - Generador de especificaciones OpenAPI 3.0.
+
+6. HERRAMIENTAS DE DESARROLLO
+-----------------------------
+- ts-node-dev: v2.0.0 - Reinicio automatico y compilacion en caliente.
+- Prisma Studio: Herramienta visual de Prisma para explorar datos.
+- PowerShell / Terminal: Entorno de ejecucion de comandos.
+
+7. ARQUITECTURA
+---------------
+- Estilo: Microservicios (RESTful API).
+- Comunicacion: HTTP/JSON.
+- Base de datos: Database per Service (Aislamiento total).
