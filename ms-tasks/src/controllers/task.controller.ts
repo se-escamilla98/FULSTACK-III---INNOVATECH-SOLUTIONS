@@ -18,8 +18,8 @@ export class TaskController {
   // Obtener Tareas por Proyecto
   async getTasksByProject(req: Request, res: Response) {
     try {
-      const { projectId } = req.params;
-      const tasks = await taskService.getTasksByProject(projectId);
+      const { tasktId } = req.params;
+      const tasks = await taskService.getTasksByProject(taskId);
       res.status(200).json(tasks);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -32,6 +32,9 @@ export class TaskController {
       const { id } = req.params;
       const data = req.body;
       const updatedTask = await taskService.updateTask(id, data);
+      if (!id){
+        res.status(404).json({ error:"Tarea no Existe"})
+      } 
       res.status(200).json(updatedTask);
     } catch (error: any) {
       res.status(404).json({ error: error.message });
