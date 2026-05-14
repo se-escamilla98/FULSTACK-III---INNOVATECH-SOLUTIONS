@@ -1,7 +1,9 @@
 version: '3.8'
 
 services:
-  # Base de datos para el Microservicio de Tareas
+
+  # ==================== BASES DE DATOS ====================
+
   db-tasks:
     image: postgres:15
     restart: always
@@ -10,9 +12,10 @@ services:
       POSTGRES_PASSWORD: randompassword
       POSTGRES_DB: db_tasks
     ports:
-      - "5433:5432" # El puerto 5432 del contenedor sale al 5433 de tu PC
+      - "5433:5432"
+    networks:
+      - innovatech-network
 
-  # Base de datos para el Microservicio de Proyectos
   db-projects:
     image: postgres:15
     restart: always
@@ -21,8 +24,63 @@ services:
       POSTGRES_PASSWORD: password_projects
       POSTGRES_DB: db_projects
     ports:
-      - "5434:5432" # El puerto 5432 del contenedor sale al 5434 de tu PC
+      - "5434:5432"
+    networks:
+      - innovatech-network
+
+  db-teams:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: user_teams
+      POSTGRES_PASSWORD: password_teams
+      POSTGRES_DB: db_teams
+    ports:
+      - "5435:5432"
+    networks:
+      - innovatech-network
+
+  # ==================== MICROSERVICIOS ====================
+
+  ms-tasks:
+    build: ./ms-tasks        # Docker lee el Dockerfile de esa carpeta
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://johndoe:randompassword@db-tasks:5432/db_tasks
+      PORT: 3001
+    depends_on:
+      - db-tasks             # Espera que la BD esté lista antes de iniciar
+    networks:
+      - innovatech-network
+
+  ms-projects:
+    build: ./ms-projects
+    restart: always
+    ports:
+      - "3002:3002"
+    environment:
+      DATABASE_URL: postgresql://user_projects:password_projects@db-projects:5432/db_projects
+      PORT: 3002
+    depends_on:
+      - db-projects
+    networks:
+      - innovatech-network
+
+  ms-teams:
+    build: ./ms-teams
+    restart: always
+    ports:
+      - "3003:3003"
+    environment:
+      DATABASE_URL: postgresql://user_teams:password_teams@db-teams:5432/db_teams
+      PORT: 3003
+    depends_on:
+      - db-teams
+    networks:
+      - innovatech-network
 
 networks:
   innovatech-network:
-    driver: bridge
+    driver: bridge           # Red compartida para que los servicios se hablen entre sí

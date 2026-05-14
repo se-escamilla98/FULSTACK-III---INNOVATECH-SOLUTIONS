@@ -5,7 +5,11 @@ import { Express } from 'express';
 const options = {
   definition: {
     openapi: '3.0.0',
-    info: { /* ... */ },
+    info: { 
+          title: 'Innovatech Projects API',
+          version: '1.0.0',
+          description: 'Documentación oficial del Microservicio de Proyectos' 
+        },
     servers: [{ url: 'http://localhost:3002' }],
     // Define las rutas aquí directamente
     paths: {

@@ -18,7 +18,7 @@ export class TaskController {
   // Obtener Tareas por Proyecto
   async getTasksByProject(req: Request, res: Response) {
     try {
-      const { tasktId } = req.params;
+      const { taskId } = req.params as { taskId: string };
       const tasks = await taskService.getTasksByProject(taskId);
       res.status(200).json(tasks);
     } catch (error: any) {

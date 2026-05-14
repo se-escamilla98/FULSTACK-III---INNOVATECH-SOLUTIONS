@@ -53,4 +53,32 @@ export class ProjectService {
         return true; // ← bloquea el cambio a COMPLETED
       }
   }
+
+  async updateProject(id: string, data: { name?: string; description?: string }): Promise<Project> {
+  if (data.name !== undefined && data.name.trim() === "") {
+    throw new Error("El nombre no puede quedar vacío");
+  }
+  if (data.description !== undefined && data.description.trim() === "") {
+    throw new Error("La descripción no puede quedar vacía");
+  }
+
+  const project = await prisma.project.findUnique({ where: { id } });
+  if (!project) throw new Error(`Proyecto con ID ${id} no encontrado`);
+
+  return await prisma.project.update({
+    where: { id },
+    data: { ...data, updatedAt: new Date() }
+  });
+}
+
+async deleteProject(id: string): Promise<Project> {
+  try {
+    return await prisma.project.delete({ where: { id } });
+  } catch (error) {
+    throw new Error(`No se pudo eliminar el proyecto con ID ${id}. Verifique si existe.`);
+  }
+}
+
+
+
 }

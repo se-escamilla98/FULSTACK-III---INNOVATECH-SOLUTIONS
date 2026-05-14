@@ -1,5 +1,5 @@
 import { PrismaClient, Team } from '@prisma/client';
-import { TeamFactory } from '../factories/team.factory';
+import { TeamFactory } from '../factorie/team.factory';
 
 const prisma = new PrismaClient();
 
