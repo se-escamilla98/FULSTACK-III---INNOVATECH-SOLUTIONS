@@ -1,0 +1,461 @@
+================================================================================
+          INNOVATECH SOLUTIONS - GUIA DE INSTALACION Y DESPLIEGUE
+              Arquitectura de Microservicios | Node.js + Prisma + Docker
+================================================================================
+
+INDICE
+------
+1. Requisitos previos
+2. Software obligatorio y versiones
+3. Estructura del proyecto
+4. Instalacion limpia paso a paso
+5. Variables de entorno
+6. Levantar el sistema con Docker
+7. Migraciones de base de datos
+8. Verificar que todo funciona
+9. Errores comunes y soluciones
+10. Stack tecnologico
+
+================================================================================
+1. REQUISITOS PREVIOS
+================================================================================
+
+Antes de ejecutar cualquier comando, el equipo debe tener instalado:
+
+  Herramienta            Version requerida         Para que se usa
+  -----------------------------------------------------------------------
+  Node.js                v22.x.x (LTS)             Runtime de los servicios
+  npm                    v10.x.x (con Node)         Instalar dependencias
+  TypeScript             v5.x (se instala con npm)  Lenguaje del proyecto
+  Docker Desktop         v4.x o superior            Contenerizar servicios
+  Docker Compose         v3.8 (incluido Docker)     Orquestar contenedores
+  Git                    Cualquier version          Clonar el repositorio
+  WSL 2 (solo Win Home)  Windows 10/11 Home         Requerido por Docker
+
+IMPORTANTE - Windows Home:
+  Docker Desktop requiere WSL 2 en equipos con Windows 10/11 Home.
+  Si tienes Windows Pro o Enterprise no necesitas WSL 2.
+
+Verificar instalaciones:
+  node --version          (debe mostrar v22.x.x)
+  npm --version           (debe mostrar v10.x.x)
+  docker --version
+  docker compose version
+
+================================================================================
+2. INSTALAR WSL 2 (SOLO WINDOWS HOME)
+================================================================================
+
+Abrir PowerShell como Administrador y ejecutar:
+
+  wsl --install
+  wsl --set-default-version 2
+  wsl --update
+
+Reiniciar el equipo despues de ejecutar estos comandos.
+
+Verificar que quedo instalado:
+  wsl --status            (debe decir "Default Version: 2")
+
+Configurar Docker Desktop:
+  1. Abrir Docker Desktop
+  2. Settings > General > activar "Use the WSL 2 based engine"
+  3. Settings > Resources > WSL Integration > activar tu distribucion Linux
+  4. Apply & Restart
+
+================================================================================
+3. ESTRUCTURA DEL PROYECTO
+================================================================================
+
+Una vez clonado, la estructura debe verse asi:
+
+  FULSTACK-III---INNOVATECH-SOLUTIONS/
+  |
+  |-- docker-compose.yml          <- Archivo principal (levanta todo)
+  |
+  |-- bff-gateway/                <- BFF / API Gateway (puerto 3000)
+  |   |-- Dockerfile
+  |   |-- package.json
+  |   |-- tsconfig.json
+  |   |-- .env
+  |   `-- src/
+  |       |-- app.ts
+  |       |-- routes/
+  |       |   |-- projects.routes.ts
+  |       |   |-- tasks.routes.ts
+  |       |   `-- teams.routes.ts
+  |       `-- services/
+  |           |-- projects.service.ts
+  |           |-- tasks.service.ts
+  |           `-- teams.service.ts
+  |
+  |-- ms-projects/                <- Microservicio Proyectos (puerto 3002)
+  |   |-- Dockerfile
+  |   |-- package.json
+  |   |-- tsconfig.json
+  |   |-- .env
+  |   |-- prisma/
+  |   |   `-- schema.prisma
+  |   `-- src/
+  |       |-- app.ts
+  |       |-- controller/
+  |       |-- service/
+  |       `-- factorie/
+  |
+  |-- ms-tasks/                   <- Microservicio Tareas (puerto 3001)
+  |   |-- Dockerfile
+  |   |-- package.json
+  |   |-- tsconfig.json
+  |   |-- .env
+  |   |-- prisma/
+  |   |   `-- schema.prisma
+  |   `-- src/
+  |       |-- app.ts
+  |       |-- controllers/
+  |       `-- services/
+  |
+  `-- ms-teams/                   <- Microservicio Equipos (puerto 3003)
+      |-- Dockerfile
+      |-- package.json
+      |-- tsconfig.json
+      |-- .env
+      |-- prisma/
+      |   `-- schema.prisma
+      `-- src/
+          |-- app.ts
+          |-- controllers/
+          |-- services/
+          `-- factories/
+
+================================================================================
+4. INSTALACION LIMPIA - PASO A PASO
+================================================================================
+
+PASO 1: Clonar el repositorio
+----------------------------------------------------------------------
+  git clone <URL_DEL_REPOSITORIO>
+  cd FULSTACK-III---INNOVATECH-SOLUTIONS
+
+PASO 2: Instalar dependencias de ms-tasks
+----------------------------------------------------------------------
+  cd ms-tasks
+  npm install
+  npx prisma generate
+
+PASO 3: Instalar dependencias de ms-projects
+----------------------------------------------------------------------
+  cd ../ms-projects
+  npm install
+  npx prisma generate
+
+PASO 4: Instalar dependencias de ms-teams
+----------------------------------------------------------------------
+  cd ../ms-teams
+  npm install
+  npx prisma generate
+
+PASO 5: Instalar dependencias del BFF
+----------------------------------------------------------------------
+  cd ../bff-gateway
+  npm install
+
+PASO 6: Crear archivos .env (ver seccion 5)
+----------------------------------------------------------------------
+  Crear un archivo .env en cada carpeta con las variables correctas.
+
+PASO 7: Verificar que cada microservicio compila
+----------------------------------------------------------------------
+  Desde cada carpeta ejecutar:
+  npm run build
+
+  Si no hay errores, la compilacion fue exitosa (TypeScript no
+  muestra nada cuando todo esta bien).
+
+PASO 8: Volver a la raiz y levantar todo con Docker
+----------------------------------------------------------------------
+  cd ..
+  docker compose up --build
+
+================================================================================
+5. VARIABLES DE ENTORNO (.env)
+================================================================================
+
+IMPORTANTE: Estos archivos no se suben a Git. Debes crearlos manualmente.
+
+----------------------------------------------------------------------
+bff-gateway/.env
+----------------------------------------------------------------------
+PORT=3000
+MS_TASKS_URL=http://localhost:3001
+MS_PROJECTS_URL=http://localhost:3002
+MS_TEAMS_URL=http://localhost:3003
+
+----------------------------------------------------------------------
+ms-tasks/.env
+----------------------------------------------------------------------
+DATABASE_URL="postgresql://johndoe:randompassword@localhost:5433/db_tasks"
+PORT=3001
+
+----------------------------------------------------------------------
+ms-projects/.env
+----------------------------------------------------------------------
+DATABASE_URL="postgresql://user_projects:password_projects@localhost:5434/db_projects"
+PORT=3002
+
+----------------------------------------------------------------------
+ms-teams/.env
+----------------------------------------------------------------------
+DATABASE_URL="postgresql://user_teams:password_teams@localhost:5435/db_teams"
+PORT=3003
+
+NOTA SOBRE PUERTOS DE BASE DE DATOS:
+  Los puertos 5433, 5434 y 5435 son los puertos externos que Docker
+  expone en tu PC. Dentro de Docker todas las BDs corren en el 5432.
+  Esta distincion es importante para evitar conflictos.
+
+NOTA SOBRE DOCKER:
+  Dentro de Docker, las URLs de los microservicios usan el nombre del
+  contenedor en vez de localhost. Esto lo maneja automaticamente el
+  docker-compose.yml con las variables de entorno del bloque
+  "environment" de cada servicio.
+
+================================================================================
+6. LEVANTAR EL SISTEMA CON DOCKER
+================================================================================
+
+PRIMER LEVANTAMIENTO (instalacion limpia o cambios en el codigo):
+  Desde la carpeta raiz del proyecto:
+
+  docker compose up --build
+
+  El flag --build fuerza que Docker reconstruya las imagenes.
+  La primera vez toma varios minutos porque descarga las imagenes base.
+
+LEVANTAMIENTO NORMAL (sin cambios en el codigo):
+  docker compose up
+
+LEVANTAR EN SEGUNDO PLANO (modo detached):
+  docker compose up -d --build
+
+  Para ver los logs despues:
+  docker compose logs -f
+
+DETENER EL SISTEMA:
+  docker compose down
+
+RESULTADO ESPERADO cuando todo esta bien:
+  ms-tasks-1     | Swagger Docs: http://localhost:3001/api-docs
+  ms-tasks-1     | MS-TASKS corriendo en puerto 3001
+  ms-projects-1  | MS-PROJECTS corriendo en http://localhost:3002
+  ms-projects-1  | Swagger en http://localhost:3002/api-docs
+  ms-teams-1     | MS-TEAMS corriendo en http://localhost:3003
+  bff-1          | BFF-GATEWAY corriendo en http://localhost:3000
+
+================================================================================
+7. MIGRACIONES DE BASE DE DATOS
+================================================================================
+
+Las migraciones crean las tablas en PostgreSQL segun el schema.prisma.
+Deben ejecutarse la primera vez, o cuando se modifica el schema.
+Las bases de datos deben estar corriendo antes de migrar.
+
+  cd ms-tasks
+  npx prisma migrate dev --name init
+
+  cd ../ms-projects
+  npx prisma migrate dev --name init
+
+  cd ../ms-teams
+  npx prisma migrate dev --name init
+
+DIFERENCIA ENTRE GENERATE Y MIGRATE:
+  - npx prisma generate   -> Crea los tipos TypeScript desde el schema
+  - npx prisma migrate    -> Crea/actualiza las tablas en PostgreSQL
+  Ambos son necesarios pero cumplen roles distintos.
+
+================================================================================
+8. VERIFICAR QUE TODO FUNCIONA
+================================================================================
+
+URLs de los servicios:
+  BFF Gateway:   http://localhost:3000
+  MS-Tasks:      http://localhost:3001
+  MS-Projects:   http://localhost:3002
+  MS-Teams:      http://localhost:3003
+
+Documentacion Swagger (interfaz grafica para probar las APIs):
+  MS-Tasks:      http://localhost:3001/api-docs
+  MS-Projects:   http://localhost:3002/api-docs
+  MS-Teams:      http://localhost:3003/api-docs
+
+================================================================================
+9. ERRORES COMUNES Y SOLUCIONES
+================================================================================
+
+ERROR: 'tsc' no se reconoce como comando
+----------------------------------------------------------------------
+Causa:    TypeScript no esta instalado o las dependencias no fueron
+          instaladas correctamente.
+Solucion: Ejecutar npm install dentro de la carpeta del microservicio.
+
+  cd ms-projects   (o ms-tasks, ms-teams, bff-gateway)
+  npm install
+
+
+ERROR: Cannot find module '../services/...'
+----------------------------------------------------------------------
+Causa:    Los nombres de las carpetas no coinciden con los imports.
+          Por ejemplo la carpeta se llama 'service' pero el import
+          busca '../services'.
+Solucion: Renombrar la carpeta para que coincida con el import.
+
+  rename src\service src\services
+  rename src\factorie src\factories
+
+
+ERROR: libssl.so.1.1 not found (en Docker)
+----------------------------------------------------------------------
+Causa:    La imagen node:22-alpine no incluye OpenSSL que Prisma
+          necesita para funcionar.
+Solucion: Agregar esta linea al Dockerfile de cada microservicio
+          que usa Prisma (NO es necesario en el BFF):
+
+  FROM node:22-alpine
+  RUN apk add --no-cache openssl    <- Esta linea es obligatoria
+  WORKDIR /app
+  ...
+
+
+ERROR: npm error Missing script "build"
+----------------------------------------------------------------------
+Causa:    El package.json no tiene el script "build" definido.
+          Ocurre cuando npm init -y crea un package.json basico
+          sin los scripts de TypeScript.
+Solucion: Agregar los scripts al package.json:
+
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js"
+  }
+
+
+ERROR: Virtualizacion desactivada en Docker (Windows Home)
+----------------------------------------------------------------------
+Causa:    WSL 2 no esta instalado o activado en Windows Home.
+Solucion: Ejecutar en PowerShell como Administrador y reiniciar:
+
+  wsl --install
+  wsl --set-default-version 2
+  wsl --update
+
+
+ERROR: Prisma schema validation - caracteres invalidos
+----------------------------------------------------------------------
+Causa:    El archivo schema.prisma tiene caracteres invalidos al inicio.
+          Por ejemplo las letras 'cl' sueltas en la linea 1.
+Solucion: Abrir el schema.prisma y eliminar cualquier texto que no sea
+          codigo Prisma valido. El archivo debe comenzar directamente
+          con el bloque 'generator client {'.
+
+
+ERROR: File 'prisma.config.ts' is not under rootDir
+----------------------------------------------------------------------
+Causa:    Hay un archivo .ts suelto en la raiz del microservicio fuera
+          de la carpeta src/. TypeScript intenta compilarlo pero no
+          puede porque rootDir apunta a src/.
+Solucion: Agregar el archivo al bloque "exclude" del tsconfig.json:
+
+  "exclude": ["node_modules", "dist", "prisma.config.ts"]
+
+
+ERROR: Property 'getById' does not exist on type 'ProjectController'
+----------------------------------------------------------------------
+Causa:    Las rutas en app.ts llaman a metodos que no existen en el
+          controller. El metodo existe en el service pero no fue
+          agregado al controller.
+Solucion: Agregar el metodo faltante al controller correspondiente.
+
+
+ERROR: Argument of type 'string | undefined' is not assignable
+----------------------------------------------------------------------
+Causa:    TypeScript no puede garantizar que req.params o req.body
+          tengan un valor. El tipo es 'string | undefined' pero el
+          metodo espera 'string'.
+Solucion: Castear el tipo al extraer parametros:
+
+  const { id } = req.params as { id: string };
+  const { status } = req.body as { status: string };
+
+
+ERROR: ECMAScript imports cannot be written in CommonJS file
+----------------------------------------------------------------------
+Causa:    El tsconfig.json tiene "module": "nodenext" y
+          "verbatimModuleSyntax": true, que son incompatibles con
+          el package.json que no tiene "type": "module".
+Solucion: Reemplazar en tsconfig.json:
+
+  ANTES:
+  "module": "nodenext",
+  "target": "esnext",
+  "verbatimModuleSyntax": true,
+
+  DESPUES:
+  "module": "commonjs",
+  "target": "es2020",
+
+  Y eliminar la linea "verbatimModuleSyntax" completamente.
+
+
+ERROR: path "bff" not found (Docker Compose)
+----------------------------------------------------------------------
+Causa:    El docker-compose.yml referencia una carpeta 'bff' pero
+          la carpeta real se llama diferente (ej: 'bff-gateway').
+Solucion: Verificar el nombre exacto de la carpeta y actualizar el
+          docker-compose.yml:
+
+  bff:
+    build: ./bff-gateway    <- nombre exacto de la carpeta
+
+
+ERROR: axios.put en vez de axios.patch
+----------------------------------------------------------------------
+Causa:    Confusion entre PUT y PATCH.
+          PUT reemplaza el objeto completo.
+          PATCH actualiza solo los campos enviados.
+Solucion: Usar axios.patch para actualizaciones parciales.
+
+
+ERROR: localhost dentro de Docker no funciona
+----------------------------------------------------------------------
+Causa:    Dentro de Docker, cada contenedor es independiente.
+          'localhost' apunta al contenedor mismo, no a otros servicios.
+Solucion: Usar el nombre del servicio de Docker en vez de localhost.
+          Esto se configura en el docker-compose.yml:
+
+  environment:
+    MS_TASKS_URL: http://ms-tasks:3001       <- nombre del servicio
+    MS_PROJECTS_URL: http://ms-projects:3002
+    MS_TEAMS_URL: http://ms-teams:3003
+
+================================================================================
+10. STACK TECNOLOGICO
+================================================================================
+
+  Tecnologia          Version        Rol en el proyecto
+  -----------------------------------------------------------------------
+  Node.js             v22.11.0 LTS   Runtime de JavaScript para el servidor
+  TypeScript          v5.x           Lenguaje principal con tipado estatico
+  Express             v4.19.2        Framework web para las APIs REST
+  Prisma ORM          v5.22.0        Mapeo objeto-relacional con PostgreSQL
+  PostgreSQL          v15.0          Motor de base de datos relacional
+  Docker Desktop      v4.x+          Contenedorizacion de servicios
+  Docker Compose      v3.8           Orquestacion multi-contenedor
+  Swagger             v5.x + v6.x    Documentacion interactiva de las APIs
+  Axios               v1.7.x         Comunicacion HTTP entre microservicios
+  dotenv              v16.x          Gestion de variables de entorno
+  ts-node-dev         v2.0.0         Compilacion en caliente para desarrollo
+
+================================================================================
+             Innovatech Solutions | Desarrollo FullStack III | DuocUC
+================================================================================

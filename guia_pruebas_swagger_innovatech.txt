@@ -1,0 +1,365 @@
+================================================================================
+         INNOVATECH SOLUTIONS - GUIA DE PRUEBAS CON SWAGGER
+================================================================================
+
+Swagger es una interfaz grafica que permite probar los endpoints de cada
+microservicio directamente desde el navegador, sin necesidad de Postman
+u otras herramientas externas.
+
+URLS DE SWAGGER:
+  MS-Tasks:      http://localhost:3001/api-docs
+  MS-Projects:   http://localhost:3002/api-docs
+  MS-Teams:      http://localhost:3003/api-docs
+
+REQUISITO: El sistema debe estar corriendo (docker compose up --build)
+antes de acceder a estas URLs.
+
+================================================================================
+COMO USAR SWAGGER
+================================================================================
+
+1. Abrir la URL del microservicio que quieres probar en el navegador.
+
+2. Veras una lista de endpoints organizados por metodo HTTP
+   (GET, POST, PATCH, DELETE).
+
+3. Para probar un endpoint:
+   a. Hacer clic en el endpoint que quieres probar.
+   b. Hacer clic en el boton "Try it out" (aparece a la derecha).
+   c. Completar los campos requeridos.
+   d. Hacer clic en "Execute".
+   e. Ver la respuesta en la seccion "Responses" mas abajo.
+
+================================================================================
+PRUEBAS RECOMENDADAS - MS-PROJECTS (puerto 3002)
+================================================================================
+
+PRUEBA 1: Crear un proyecto
+----------------------------------------------------------------------
+Endpoint:  POST /projects
+Body JSON:
+  {
+    "name": "Proyecto Innovatech Alpha",
+    "description": "Desarrollo del sistema de gestion de proyectos"
+  }
+
+Resultado esperado:
+  Status: 201 Created
+  {
+    "id": "uuid-generado-automaticamente",
+    "name": "Proyecto Innovatech Alpha",
+    "description": "Desarrollo del sistema de gestion de proyectos",
+    "status": "PLANNED",
+    "createdAt": "2026-05-18T...",
+    "updatedAt": "2026-05-18T..."
+  }
+
+NOTA: Guarda el "id" que retorna, lo necesitaras en las siguientes pruebas.
+
+
+PRUEBA 2: Obtener todos los proyectos
+----------------------------------------------------------------------
+Endpoint:  GET /projects
+Body:      No requiere body
+
+Resultado esperado:
+  Status: 200 OK
+  Array con todos los proyectos creados.
+
+
+PRUEBA 3: Obtener proyecto por ID
+----------------------------------------------------------------------
+Endpoint:  GET /projects/{id}
+Parametro: id = el uuid que guardaste en la Prueba 1
+
+Resultado esperado:
+  Status: 200 OK
+  El proyecto con ese ID.
+
+Prueba de error - ID inexistente:
+  Parametro: id = "id-que-no-existe"
+  Resultado esperado: Status 404 - "Proyecto no encontrado"
+
+
+PRUEBA 4: Actualizar informacion del proyecto
+----------------------------------------------------------------------
+Endpoint:  PATCH /projects/{id}
+Parametro: id = el uuid del proyecto
+Body JSON:
+  {
+    "name": "Proyecto Innovatech Alpha - Actualizado"
+  }
+
+Resultado esperado:
+  Status: 200 OK
+  El proyecto con el nombre actualizado.
+
+
+PRUEBA 5: Cambiar estado del proyecto
+----------------------------------------------------------------------
+Endpoint:  PATCH /projects/{id}/status
+Parametro: id = el uuid del proyecto
+Body JSON:
+  {
+    "status": "IN_PROGRESS"
+  }
+
+Estados validos: PLANNED, IN_PROGRESS, COMPLETED, ON_HOLD, CANCELLED
+
+Resultado esperado:
+  Status: 200 OK
+  El proyecto con el nuevo estado.
+
+Prueba de regla de negocio:
+  Intentar cambiar a "COMPLETED" cuando hay tareas PENDING.
+  Resultado esperado: Status 400 - error de tareas pendientes.
+
+
+PRUEBA 6: Eliminar proyecto
+----------------------------------------------------------------------
+Endpoint:  DELETE /projects/{id}
+Parametro: id = el uuid del proyecto
+
+Resultado esperado:
+  Status: 200 OK
+  { "message": "Proyecto eliminado correctamente" }
+
+================================================================================
+PRUEBAS RECOMENDADAS - MS-TASKS (puerto 3001)
+================================================================================
+
+REQUISITO: Necesitas un projectId valido de MS-Projects para crear tareas.
+           Usa el id del proyecto creado en la seccion anterior.
+
+PRUEBA 1: Crear una tarea
+----------------------------------------------------------------------
+Endpoint:  POST /tasks
+Body JSON:
+  {
+    "name": "Disenar arquitectura de microservicios",
+    "description": "Definir los patrones y componentes del sistema",
+    "area": "Backend",
+    "assignedTo": "uuid-del-desarrollador",
+    "teamId": "uuid-del-equipo",
+    "projectId": "uuid-del-proyecto-creado-antes"
+  }
+
+Resultado esperado:
+  Status: 201 Created
+  {
+    "id": "uuid-generado",
+    "name": "Disenar arquitectura de microservicios",
+    "status": "PENDING",
+    ...
+  }
+
+Prueba de validacion:
+  Intentar crear una tarea sin "name":
+  Resultado esperado: Status 400 - "El nombre de la tarea es obligatorio"
+
+  Intentar crear una tarea sin "projectId":
+  Resultado esperado: Status 400 - "Toda tarea debe estar asociada a un Proyecto"
+
+
+PRUEBA 2: Obtener tarea por ID
+----------------------------------------------------------------------
+Endpoint:  GET /tasks/{id}
+Parametro: id = uuid de la tarea creada
+
+Resultado esperado:
+  Status: 200 OK
+  La tarea con ese ID.
+
+
+PRUEBA 3: Obtener tareas por proyecto
+----------------------------------------------------------------------
+Endpoint:  GET /tasks/project/{projectId}
+Parametro: projectId = uuid del proyecto
+
+Resultado esperado:
+  Status: 200 OK
+  Array con todas las tareas de ese proyecto.
+
+
+PRUEBA 4: Actualizar tarea
+----------------------------------------------------------------------
+Endpoint:  PATCH /tasks/{id}
+Parametro: id = uuid de la tarea
+Body JSON:
+  {
+    "status": "IN_PROGRESS"
+  }
+
+Estados validos: PENDING, IN_PROGRESS, COMPLETED, BLOCKED
+
+Resultado esperado:
+  Status: 200 OK
+  La tarea con el status actualizado.
+
+
+PRUEBA 5: Eliminar tarea
+----------------------------------------------------------------------
+Endpoint:  DELETE /tasks/{id}
+Parametro: id = uuid de la tarea
+
+Resultado esperado:
+  Status: 200 OK
+  { "message": "Tarea eliminada correctamente" }
+
+================================================================================
+PRUEBAS RECOMENDADAS - MS-TEAMS (puerto 3003)
+================================================================================
+
+PRUEBA 1: Crear un equipo
+----------------------------------------------------------------------
+Endpoint:  POST /teams
+Body JSON:
+  {
+    "name": "Equipo Backend Alpha",
+    "description": "Equipo encargado del desarrollo backend",
+    "area": "Backend",
+    "leaderId": "uuid-del-lider",
+    "members": ["uuid-miembro-1", "uuid-miembro-2"]
+  }
+
+Resultado esperado:
+  Status: 201 Created
+  {
+    "id": "uuid-generado",
+    "name": "Equipo Backend Alpha",
+    "status": "ACTIVE",
+    ...
+  }
+
+
+PRUEBA 2: Obtener todos los equipos
+----------------------------------------------------------------------
+Endpoint:  GET /teams
+Body:      No requiere body
+
+Resultado esperado:
+  Status: 200 OK
+  Array con todos los equipos.
+
+
+PRUEBA 3: Obtener equipo por ID
+----------------------------------------------------------------------
+Endpoint:  GET /teams/{id}
+Parametro: id = uuid del equipo
+
+Resultado esperado:
+  Status: 200 OK
+  El equipo con ese ID.
+
+  Si no existe:
+  Status: 404 - "Equipo no encontrado"
+
+
+PRUEBA 4: Actualizar equipo
+----------------------------------------------------------------------
+Endpoint:  PATCH /teams/{id}
+Parametro: id = uuid del equipo
+Body JSON:
+  {
+    "name": "Equipo Backend Alpha - Reforzado"
+  }
+
+Resultado esperado:
+  Status: 200 OK
+  El equipo actualizado.
+
+
+PRUEBA 5: Cambiar estado del equipo
+----------------------------------------------------------------------
+Endpoint:  PATCH /teams/{id}/status
+Parametro: id = uuid del equipo
+Body JSON:
+  {
+    "status": "INACTIVE"
+  }
+
+Estados validos: ACTIVE, INACTIVE
+
+Resultado esperado:
+  Status: 200 OK
+  El equipo con el nuevo estado.
+
+
+PRUEBA 6: Eliminar equipo
+----------------------------------------------------------------------
+Endpoint:  DELETE /teams/{id}
+Parametro: id = uuid del equipo
+
+Resultado esperado:
+  Status: 200 OK
+
+================================================================================
+PRUEBA DE INTEGRACION - FLUJO COMPLETO
+================================================================================
+
+Este flujo prueba que los microservicios se comunican correctamente
+entre si a traves del BFF.
+
+PASO 1: Crear un proyecto en MS-Projects
+  POST http://localhost:3002/projects
+  Body: { "name": "Proyecto Test", "description": "Prueba de integracion" }
+  Guardar el "id" del proyecto.
+
+PASO 2: Crear tareas asociadas al proyecto en MS-Tasks
+  POST http://localhost:3001/tasks
+  Body: {
+    "name": "Tarea pendiente 1",
+    "area": "Backend",
+    "assignedTo": "dev-001",
+    "teamId": "team-001",
+    "projectId": "id-del-proyecto",
+    "status": "PENDING"
+  }
+
+PASO 3: Intentar completar el proyecto (debe fallar)
+  PATCH http://localhost:3002/projects/{id}/status
+  Body: { "status": "COMPLETED" }
+  Resultado esperado: Error 400 - hay tareas pendientes.
+
+PASO 4: Completar todas las tareas
+  PATCH http://localhost:3001/tasks/{id-tarea}
+  Body: { "status": "COMPLETED" }
+
+PASO 5: Intentar completar el proyecto (debe funcionar ahora)
+  PATCH http://localhost:3002/projects/{id}/status
+  Body: { "status": "COMPLETED" }
+  Resultado esperado: 200 OK - proyecto completado.
+
+Este flujo verifica que la regla de negocio funciona correctamente:
+MS-Projects consulta a MS-Tasks antes de permitir el cambio de estado.
+
+================================================================================
+CODIGOS HTTP DE REFERENCIA
+================================================================================
+
+  Codigo   Significado          Cuando ocurre
+  -----------------------------------------------------------------------
+  200      OK                   Operacion exitosa (GET, PATCH, DELETE)
+  201      Created              Recurso creado exitosamente (POST)
+  400      Bad Request          Error de validacion o regla de negocio
+  404      Not Found            El recurso no existe
+  500      Internal Server Error Error inesperado del servidor
+
+================================================================================
+TIPS PARA PRUEBAS
+================================================================================
+
+1. Probar siempre el caso feliz (datos correctos) primero.
+2. Luego probar casos de error (campos vacios, IDs inexistentes).
+3. Los UUIDs se generan automaticamente - no necesitas inventarlos.
+4. Si un endpoint retorna 500, revisar los logs del contenedor:
+   docker compose logs ms-projects
+   docker compose logs ms-tasks
+   docker compose logs ms-teams
+   docker compose logs bff
+5. Para reiniciar solo un servicio sin detener todo:
+   docker compose restart ms-projects
+
+================================================================================
+            Innovatech Solutions | Desarrollo FullStack III | DuocUC
+================================================================================

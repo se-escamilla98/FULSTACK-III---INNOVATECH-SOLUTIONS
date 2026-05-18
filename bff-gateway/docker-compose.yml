@@ -1,0 +1,16 @@
+bff:
+    build: ./bff
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      MS_TASKS_URL: http://ms-tasks:3001
+      MS_PROJECTS_URL: http://ms-projects:3002
+      MS_TEAMS_URL: http://ms-teams:3003
+    depends_on:
+      - ms-tasks
+      - ms-projects
+      - ms-teams
+    networks:
+      - innovatech-network

@@ -43,7 +43,7 @@ services:
   # ==================== MICROSERVICIOS ====================
 
   ms-tasks:
-    build: ./ms-tasks        # Docker lee el Dockerfile de esa carpeta
+    build: ./ms-tasks
     restart: always
     ports:
       - "3001:3001"
@@ -51,7 +51,7 @@ services:
       DATABASE_URL: postgresql://johndoe:randompassword@db-tasks:5432/db_tasks
       PORT: 3001
     depends_on:
-      - db-tasks             # Espera que la BD esté lista antes de iniciar
+      - db-tasks
     networks:
       - innovatech-network
 
@@ -81,6 +81,25 @@ services:
     networks:
       - innovatech-network
 
+  # ==================== BFF ====================
+
+  bff:
+    build: ./bff-gateway
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      MS_TASKS_URL: http://ms-tasks:3001
+      MS_PROJECTS_URL: http://ms-projects:3002
+      MS_TEAMS_URL: http://ms-teams:3003
+    depends_on:
+      - ms-tasks
+      - ms-projects
+      - ms-teams
+    networks:
+      - innovatech-network
+
 networks:
   innovatech-network:
-    driver: bridge           # Red compartida para que los servicios se hablen entre sí
+    driver: bridge
