@@ -1,0 +1,624 @@
+================================================================================
+        INNOVATECH SOLUTIONS - GUIA COMPLETA DE PRUEBAS
+              Swagger + CLI (curl) | Todos los endpoints
+================================================================================
+
+INDICE
+------
+1.  Requisitos para las pruebas
+2.  Como usar Swagger
+3.  Como usar curl (CLI)
+4.  Pruebas MS-Projects (puerto 3002)
+5.  Pruebas MS-Tasks (puerto 3001)
+6.  Pruebas MS-Teams (puerto 3003)
+7.  Pruebas BFF Gateway (puerto 3000)
+8.  Flujo de integracion completo
+9.  Codigos HTTP de referencia
+10. Tips y comandos utiles
+
+================================================================================
+1. REQUISITOS PARA LAS PRUEBAS
+================================================================================
+
+Antes de probar, asegurate de:
+
+1. El sistema esta corriendo:
+   docker compose up --build
+
+2. Las migraciones estan ejecutadas:
+   cd ms-projects && npx prisma migrate dev --name init
+   cd ../ms-tasks && npx prisma migrate dev --name init
+   cd ../ms-teams && npx prisma migrate dev --name init
+
+3. Ver estas lineas en la terminal de Docker:
+   ms-tasks-1     | MS-TASKS corriendo en puerto 3001
+   ms-projects-1  | MS-PROJECTS corriendo en http://localhost:3002
+   ms-teams-1     | MS-TEAMS corriendo en http://localhost:3003
+   bff-1          | BFF-GATEWAY corriendo en http://localhost:3000
+
+URLs de Swagger:
+  MS-Tasks:    http://localhost:3001/api-docs
+  MS-Projects: http://localhost:3002/api-docs
+  MS-Teams:    http://localhost:3003/api-docs
+
+================================================================================
+2. COMO USAR SWAGGER
+================================================================================
+
+1. Abrir la URL del microservicio en el navegador.
+   Ejemplo: http://localhost:3002/api-docs
+
+2. Veras una lista de endpoints organizados por metodo HTTP.
+
+3. Para probar un endpoint:
+   a. Hacer clic en el endpoint (POST /projects, GET /projects, etc.)
+   b. Hacer clic en el boton "Try it out"
+   c. Completar los campos requeridos
+   d. Hacer clic en "Execute"
+   e. Ver la respuesta en la seccion "Responses"
+
+4. Copiar los IDs que retornan las respuestas para usarlos
+   en las pruebas siguientes.
+
+================================================================================
+3. COMO USAR CURL (CLI)
+================================================================================
+
+curl es una herramienta de linea de comandos que viene instalada
+en Windows 10/11. Permite hacer peticiones HTTP desde la terminal.
+
+SINTAXIS GENERAL:
+  curl -X METODO URL -H "Content-Type: application/json" -d "BODY"
+
+NOTA PARA WINDOWS:
+  En Windows PowerShell o CMD, las comillas dentro del body
+  deben escaparse con backslash (\").
+  Ejemplo: -d "{\"name\": \"valor\"}"
+
+METODOS HTTP:
+  GET    -> curl URL
+  POST   -> curl -X POST URL -H "Content-Type: application/json" -d "{body}"
+  PATCH  -> curl -X PATCH URL -H "Content-Type: application/json" -d "{body}"
+  DELETE -> curl -X DELETE URL
+
+================================================================================
+4. PRUEBAS MS-PROJECTS (puerto 3002)
+================================================================================
+
+Swagger: http://localhost:3002/api-docs
+
+NOTA: Guarda los IDs que retornan las respuestas para usarlos
+en las pruebas siguientes y en las pruebas de MS-Tasks.
+
+----------------------------------------------------------------------
+4.1 CREAR PROYECTO - POST /projects
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: POST /projects
+  Body:
+    {
+      "name": "Proyecto Innovatech Alpha",
+      "description": "Desarrollo del sistema de gestion de proyectos"
+    }
+
+CLI:
+  curl -X POST http://localhost:3002/projects ^
+    -H "Content-Type: application/json" ^
+    -d "{\"name\": \"Proyecto Innovatech Alpha\", \"description\": \"Desarrollo del sistema\"}"
+
+Resultado esperado (201 Created):
+  {
+    "id": "uuid-generado",
+    "name": "Proyecto Innovatech Alpha",
+    "description": "Desarrollo del sistema de gestion de proyectos",
+    "status": "PLANNED",
+    "createdAt": "2026-...",
+    "updatedAt": "2026-..."
+  }
+
+Prueba de validacion - nombre vacio:
+  Body: { "name": "", "description": "algo" }
+  Resultado esperado (400): { "error": "El nombre es obligatorio" }
+
+Prueba de validacion - descripcion vacia:
+  Body: { "name": "algo", "description": "" }
+  Resultado esperado (400): { "error": "La descripcion es obligatoria" }
+
+----------------------------------------------------------------------
+4.2 OBTENER TODOS LOS PROYECTOS - GET /projects
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: GET /projects
+  No requiere body ni parametros.
+
+CLI:
+  curl http://localhost:3002/projects
+
+Resultado esperado (200 OK):
+  [ { "id": "...", "name": "...", "status": "PLANNED", ... } ]
+
+----------------------------------------------------------------------
+4.3 OBTENER PROYECTO POR ID - GET /projects/:id
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: GET /projects/{id}
+  Parametro id: uuid del proyecto creado
+
+CLI:
+  curl http://localhost:3002/projects/UUID-DEL-PROYECTO
+
+Resultado esperado (200 OK):
+  { "id": "...", "name": "...", "status": "PLANNED", ... }
+
+Prueba de error - ID inexistente:
+  curl http://localhost:3002/projects/id-que-no-existe
+  Resultado esperado (404): { "error": "Proyecto no encontrado" }
+
+----------------------------------------------------------------------
+4.4 ACTUALIZAR PROYECTO - PATCH /projects/:id
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: PATCH /projects/{id}
+  Parametro id: uuid del proyecto
+  Body:
+    {
+      "name": "Proyecto Actualizado"
+    }
+
+CLI:
+  curl -X PATCH http://localhost:3002/projects/UUID-DEL-PROYECTO ^
+    -H "Content-Type: application/json" ^
+    -d "{\"name\": \"Proyecto Actualizado\"}"
+
+Resultado esperado (200 OK):
+  { "id": "...", "name": "Proyecto Actualizado", ... }
+
+----------------------------------------------------------------------
+4.5 CAMBIAR ESTADO DEL PROYECTO - PATCH /projects/:id/status
+----------------------------------------------------------------------
+Estados validos: PLANNED, IN_PROGRESS, COMPLETED, ON_HOLD, CANCELLED
+
+Swagger:
+  Endpoint: PATCH /projects/{id}/status
+  Parametro id: uuid del proyecto
+  Body:
+    {
+      "status": "IN_PROGRESS"
+    }
+
+CLI - Cambiar a IN_PROGRESS:
+  curl -X PATCH http://localhost:3002/projects/UUID-DEL-PROYECTO/status ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"IN_PROGRESS\"}"
+
+CLI - Intentar COMPLETED con tareas pendientes (debe fallar):
+  curl -X PATCH http://localhost:3002/projects/UUID-DEL-PROYECTO/status ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"COMPLETED\"}"
+  Resultado esperado (400):
+  { "error": "No se puede marcar como finalizado: existen tareas pendientes" }
+
+CLI - Cambiar a COMPLETED sin tareas pendientes (debe funcionar):
+  (Primero completar todas las tareas del proyecto, ver seccion 5.4)
+  curl -X PATCH http://localhost:3002/projects/UUID-DEL-PROYECTO/status ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"COMPLETED\"}"
+  Resultado esperado (200 OK):
+  { "id": "...", "status": "COMPLETED", ... }
+
+----------------------------------------------------------------------
+4.6 ELIMINAR PROYECTO - DELETE /projects/:id
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: DELETE /projects/{id}
+  Parametro id: uuid del proyecto
+
+CLI:
+  curl -X DELETE http://localhost:3002/projects/UUID-DEL-PROYECTO
+
+Resultado esperado (200 OK):
+  { "message": "Proyecto eliminado correctamente" }
+
+Prueba de error - ID inexistente:
+  Resultado esperado (404): { "error": "No se pudo eliminar el proyecto..." }
+
+================================================================================
+5. PRUEBAS MS-TASKS (puerto 3001)
+================================================================================
+
+Swagger: http://localhost:3001/api-docs
+
+REQUISITO: Necesitas un projectId valido de MS-Projects.
+           Usa el id creado en la seccion 4.1.
+
+----------------------------------------------------------------------
+5.1 CREAR TAREA - POST /tasks
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: POST /tasks
+  Body:
+    {
+      "name": "Disenar arquitectura de microservicios",
+      "description": "Definir los patrones y componentes del sistema",
+      "area": "Backend",
+      "assignedTo": "dev-001",
+      "teamId": "team-001",
+      "projectId": "UUID-DEL-PROYECTO"
+    }
+
+CLI:
+  curl -X POST http://localhost:3001/tasks ^
+    -H "Content-Type: application/json" ^
+    -d "{\"name\": \"Disenar arquitectura\", \"description\": \"Definir patrones\", \"area\": \"Backend\", \"assignedTo\": \"dev-001\", \"teamId\": \"team-001\", \"projectId\": \"UUID-DEL-PROYECTO\"}"
+
+Resultado esperado (201 Created):
+  {
+    "id": "uuid-generado",
+    "name": "Disenar arquitectura de microservicios",
+    "status": "PENDING",
+    "projectId": "UUID-DEL-PROYECTO",
+    ...
+  }
+
+Prueba de validacion - sin nombre:
+  Body sin "name"
+  Resultado esperado (400): { "error": "El nombre de la tarea es obligatorio" }
+
+Prueba de validacion - sin projectId:
+  Body sin "projectId"
+  Resultado esperado (400): { "error": "Toda tarea debe estar asociada a un Proyecto" }
+
+----------------------------------------------------------------------
+5.2 OBTENER TAREA POR ID - GET /tasks/:id
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: GET /tasks/{id}
+  Parametro id: uuid de la tarea
+
+CLI:
+  curl http://localhost:3001/tasks/UUID-DE-LA-TAREA
+
+Resultado esperado (200 OK):
+  { "id": "...", "name": "...", "status": "PENDING", ... }
+
+Prueba de error - ID inexistente:
+  Resultado esperado (404): { "error": "Tarea no encontrada" }
+
+----------------------------------------------------------------------
+5.3 OBTENER TAREAS POR PROYECTO - GET /tasks/project/:projectId
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: GET /tasks/project/{projectId}
+  Parametro projectId: uuid del proyecto
+
+CLI:
+  curl http://localhost:3001/tasks/project/UUID-DEL-PROYECTO
+
+Resultado esperado (200 OK):
+  [ { "id": "...", "name": "...", "status": "PENDING", ... } ]
+
+----------------------------------------------------------------------
+5.4 ACTUALIZAR TAREA - PATCH /tasks/:id
+----------------------------------------------------------------------
+Estados validos: PENDING, IN_PROGRESS, COMPLETED, BLOCKED
+
+Swagger:
+  Endpoint: PATCH /tasks/{id}
+  Parametro id: uuid de la tarea
+  Body:
+    {
+      "status": "IN_PROGRESS"
+    }
+
+CLI - Cambiar a IN_PROGRESS:
+  curl -X PATCH http://localhost:3001/tasks/UUID-DE-LA-TAREA ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"IN_PROGRESS\"}"
+
+CLI - Cambiar a COMPLETED:
+  curl -X PATCH http://localhost:3001/tasks/UUID-DE-LA-TAREA ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"COMPLETED\"}"
+
+Resultado esperado (200 OK):
+  { "id": "...", "status": "COMPLETED", "updatedAt": "...", ... }
+
+----------------------------------------------------------------------
+5.5 ELIMINAR TAREA - DELETE /tasks/:id
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: DELETE /tasks/{id}
+  Parametro id: uuid de la tarea
+
+CLI:
+  curl -X DELETE http://localhost:3001/tasks/UUID-DE-LA-TAREA
+
+Resultado esperado (200 OK):
+  { "message": "Tarea eliminada correctamente" }
+
+================================================================================
+6. PRUEBAS MS-TEAMS (puerto 3003)
+================================================================================
+
+Swagger: http://localhost:3003/api-docs
+
+----------------------------------------------------------------------
+6.1 CREAR EQUIPO - POST /teams
+----------------------------------------------------------------------
+Swagger:
+  Endpoint: POST /teams
+  Body:
+    {
+      "name": "Equipo Backend Alpha",
+      "description": "Equipo encargado del desarrollo backend",
+      "area": "Backend",
+      "leaderId": "lider-001",
+      "members": ["dev-001", "dev-002", "dev-003"]
+    }
+
+CLI:
+  curl -X POST http://localhost:3003/teams ^
+    -H "Content-Type: application/json" ^
+    -d "{\"name\": \"Equipo Backend Alpha\", \"description\": \"Equipo backend\", \"area\": \"Backend\", \"leaderId\": \"lider-001\", \"members\": [\"dev-001\", \"dev-002\"]}"
+
+Resultado esperado (201 Created):
+  {
+    "id": "uuid-generado",
+    "name": "Equipo Backend Alpha",
+    "status": "ACTIVE",
+    ...
+  }
+
+Prueba de validacion - sin nombre:
+  Resultado esperado (400): { "error": "El nombre es obligatorio" }
+
+Prueba de validacion - sin leaderId:
+  Resultado esperado (400): { "error": "El ID del lider es obligatorio" }
+
+----------------------------------------------------------------------
+6.2 OBTENER TODOS LOS EQUIPOS - GET /teams
+----------------------------------------------------------------------
+CLI:
+  curl http://localhost:3003/teams
+
+Resultado esperado (200 OK):
+  [ { "id": "...", "name": "...", "status": "ACTIVE", ... } ]
+
+----------------------------------------------------------------------
+6.3 OBTENER EQUIPO POR ID - GET /teams/:id
+----------------------------------------------------------------------
+CLI:
+  curl http://localhost:3003/teams/UUID-DEL-EQUIPO
+
+Resultado esperado (200 OK):
+  { "id": "...", "name": "...", "status": "ACTIVE", ... }
+
+Prueba de error - ID inexistente:
+  Resultado esperado (404): { "error": "Equipo no encontrado" }
+
+----------------------------------------------------------------------
+6.4 ACTUALIZAR EQUIPO - PATCH /teams/:id
+----------------------------------------------------------------------
+CLI:
+  curl -X PATCH http://localhost:3003/teams/UUID-DEL-EQUIPO ^
+    -H "Content-Type: application/json" ^
+    -d "{\"name\": \"Equipo Backend Alpha Reforzado\"}"
+
+Resultado esperado (200 OK):
+  { "id": "...", "name": "Equipo Backend Alpha Reforzado", ... }
+
+----------------------------------------------------------------------
+6.5 CAMBIAR ESTADO DEL EQUIPO - PATCH /teams/:id/status
+----------------------------------------------------------------------
+Estados validos: ACTIVE, INACTIVE
+
+CLI - Desactivar equipo:
+  curl -X PATCH http://localhost:3003/teams/UUID-DEL-EQUIPO/status ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"INACTIVE\"}"
+
+CLI - Reactivar equipo:
+  curl -X PATCH http://localhost:3003/teams/UUID-DEL-EQUIPO/status ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"ACTIVE\"}"
+
+Resultado esperado (200 OK):
+  { "id": "...", "status": "INACTIVE", ... }
+
+----------------------------------------------------------------------
+6.6 ELIMINAR EQUIPO - DELETE /teams/:id
+----------------------------------------------------------------------
+CLI:
+  curl -X DELETE http://localhost:3003/teams/UUID-DEL-EQUIPO
+
+Resultado esperado (200 OK):
+  { "message": "Equipo eliminado correctamente" }
+
+================================================================================
+7. PRUEBAS BFF GATEWAY (puerto 3000)
+================================================================================
+
+El BFF recibe peticiones del frontend y las distribuye a los
+microservicios correctos. Usa las mismas rutas pero con prefijo /api.
+
+Endpoints disponibles:
+  POST   /api/projects
+  GET    /api/projects
+  GET    /api/projects/:id
+  PATCH  /api/projects/:id
+  PATCH  /api/projects/:id/status
+  DELETE /api/projects/:id
+
+  POST   /api/tasks
+  GET    /api/tasks/:id
+  GET    /api/tasks/project/:projectId
+  PATCH  /api/tasks/:id
+  DELETE /api/tasks/:id
+
+  POST   /api/teams
+  GET    /api/teams
+  GET    /api/teams/:id
+  PATCH  /api/teams/:id
+  PATCH  /api/teams/:id/status
+  DELETE /api/teams/:id
+
+----------------------------------------------------------------------
+7.1 Prueba basica - Crear proyecto via BFF
+----------------------------------------------------------------------
+CLI:
+  curl -X POST http://localhost:3000/api/projects ^
+    -H "Content-Type: application/json" ^
+    -d "{\"name\": \"Proyecto via BFF\", \"description\": \"Creado a traves del BFF\"}"
+
+Resultado esperado (201 Created):
+  { "id": "...", "name": "Proyecto via BFF", "status": "PLANNED", ... }
+
+----------------------------------------------------------------------
+7.2 Prueba basica - Obtener proyectos via BFF
+----------------------------------------------------------------------
+CLI:
+  curl http://localhost:3000/api/projects
+
+Resultado esperado (200 OK):
+  Lista de todos los proyectos.
+
+================================================================================
+8. FLUJO DE INTEGRACION COMPLETO
+================================================================================
+
+Este flujo prueba que los microservicios se comunican correctamente.
+Es la prueba mas importante del sistema.
+
+----------------------------------------------------------------------
+PASO 1: Crear un proyecto
+----------------------------------------------------------------------
+CLI:
+  curl -X POST http://localhost:3002/projects ^
+    -H "Content-Type: application/json" ^
+    -d "{\"name\": \"Proyecto Test Integracion\", \"description\": \"Prueba de comunicacion entre servicios\"}"
+
+Guardar el "id" del proyecto. Ejemplo:
+  PROJECT_ID = efd6a03f-d02d-4751-8373-c0bc87ac3dc3
+
+Resultado esperado: status "PLANNED"
+
+----------------------------------------------------------------------
+PASO 2: Crear una tarea asociada al proyecto
+----------------------------------------------------------------------
+CLI:
+  curl -X POST http://localhost:3001/tasks ^
+    -H "Content-Type: application/json" ^
+    -d "{\"name\": \"Tarea de prueba\", \"description\": \"Tarea para test\", \"area\": \"Backend\", \"assignedTo\": \"dev-001\", \"teamId\": \"team-001\", \"projectId\": \"PROJECT_ID\"}"
+
+Guardar el "id" de la tarea. Ejemplo:
+  TASK_ID = 9ee5906c-2752-49e7-a97a-787e014180f1
+
+Resultado esperado: status "PENDING"
+
+----------------------------------------------------------------------
+PASO 3: Intentar completar el proyecto (DEBE FALLAR)
+----------------------------------------------------------------------
+CLI:
+  curl -X PATCH http://localhost:3002/projects/PROJECT_ID/status ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"COMPLETED\"}"
+
+Resultado esperado (400):
+  { "error": "No se puede marcar como finalizado: existen tareas pendientes" }
+
+ESTO ES CORRECTO. El sistema esta funcionando bien.
+MS-Projects consulto a MS-Tasks y encontro tareas PENDING.
+
+----------------------------------------------------------------------
+PASO 4: Completar la tarea
+----------------------------------------------------------------------
+CLI:
+  curl -X PATCH http://localhost:3001/tasks/TASK_ID ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"COMPLETED\"}"
+
+Resultado esperado (200 OK):
+  { "id": "...", "status": "COMPLETED", ... }
+
+----------------------------------------------------------------------
+PASO 5: Completar el proyecto (DEBE FUNCIONAR AHORA)
+----------------------------------------------------------------------
+CLI:
+  curl -X PATCH http://localhost:3002/projects/PROJECT_ID/status ^
+    -H "Content-Type: application/json" ^
+    -d "{\"status\": \"COMPLETED\"}"
+
+Resultado esperado (200 OK):
+  { "id": "...", "status": "COMPLETED", "updatedAt": "...", ... }
+
+----------------------------------------------------------------------
+RESUMEN DEL FLUJO
+----------------------------------------------------------------------
+  PASO 1 -> Proyecto creado con status PLANNED             OK
+  PASO 2 -> Tarea creada con status PENDING                OK
+  PASO 3 -> Completar proyecto bloqueado por tarea         OK (regla de negocio)
+  PASO 4 -> Tarea marcada como COMPLETED                   OK
+  PASO 5 -> Proyecto marcado como COMPLETED                OK
+
+Si todos los pasos funcionan, la comunicacion entre microservicios
+esta operando correctamente.
+
+================================================================================
+9. CODIGOS HTTP DE REFERENCIA
+================================================================================
+
+  Codigo   Nombre                  Cuando ocurre
+  -----------------------------------------------------------------------
+  200      OK                      Operacion exitosa (GET, PATCH, DELETE)
+  201      Created                 Recurso creado exitosamente (POST)
+  400      Bad Request             Error de validacion o regla de negocio
+  404      Not Found               El recurso no existe en la BD
+  500      Internal Server Error   Error inesperado del servidor
+
+Si ves un error 500, revisar los logs del contenedor:
+  docker compose logs ms-projects
+  docker compose logs ms-tasks
+  docker compose logs ms-teams
+  docker compose logs bff
+
+================================================================================
+10. TIPS Y COMANDOS UTILES
+================================================================================
+
+Ver todos los contenedores corriendo:
+  docker ps
+
+Ver logs en tiempo real de todos los servicios:
+  docker compose logs -f
+
+Ver logs de un servicio especifico:
+  docker compose logs -f ms-projects
+
+Reiniciar un servicio sin detener todo el sistema:
+  docker compose restart ms-projects
+
+Si un endpoint retorna 500 inesperado, revisar:
+  1. Que las migraciones estan ejecutadas
+  2. Los logs del contenedor con docker compose logs
+  3. Que el .env tiene las credenciales correctas
+
+Para resetear completamente las bases de datos:
+  docker compose down -v
+  docker compose up --build
+  (ejecutar migraciones de nuevo)
+  CUIDADO: Elimina TODOS los datos guardados.
+
+Para probar sin Docker (desarrollo local):
+  Levantar cada BD con su docker-compose.yml individual
+  Ejecutar cada microservicio con: npm run dev
+  Las URLs del .env apuntan a localhost
+
+Prisma Studio (interfaz visual para ver los datos en BD):
+  cd ms-projects
+  npx prisma studio
+  Abre automaticamente en http://localhost:5555
+
+================================================================================
+            Innovatech Solutions | Desarrollo FullStack III | DuocUC
+                          Version 2.0 - Mayo 2026
+================================================================================

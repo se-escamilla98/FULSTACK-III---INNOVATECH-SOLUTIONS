@@ -42,16 +42,16 @@ export class ProjectService {
 
   private async checkPendingTasks(projectId: string): Promise<boolean> {
     try {
+      const MS_TASKS_URL = process.env.MS_TASKS_URL || 'http://ms-tasks:3001';
       const response = await axios.get(
-        `http://localhost:3001/tasks/project/${projectId}`
+        `${MS_TASKS_URL}/tasks/project/${projectId}`
       );
-        const tasks = response.data;
-        return tasks.some((task: any) => task.status === 'PENDING');
-      } catch (error) {
-        // Si MS-Tasks está caído, bloqueamos por seguridad
-        console.error('MS-Tasks no disponible:', error);
-        return true; // ← bloquea el cambio a COMPLETED
-      }
+      const tasks = response.data;
+      return tasks.some((task: any) => task.status === 'PENDING');
+    } catch (error) {
+      console.error('MS-Tasks no disponible:', error);
+      return true;
+    }
   }
 
   async updateProject(id: string, data: { name?: string; description?: string }): Promise<Project> {

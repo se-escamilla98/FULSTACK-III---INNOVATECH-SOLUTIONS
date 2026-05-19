@@ -63,6 +63,7 @@ services:
     environment:
       DATABASE_URL: postgresql://user_projects:password_projects@db-projects:5432/db_projects
       PORT: 3002
+      MS_TASKS_URL: http://ms-tasks:3001 
     depends_on:
       - db-projects
     networks:
@@ -76,6 +77,7 @@ services:
     environment:
       DATABASE_URL: postgresql://user_teams:password_teams@db-teams:5432/db_teams
       PORT: 3003
+      MS_PROJECTS_URL: http://ms-projects:3002
     depends_on:
       - db-teams
     networks:
