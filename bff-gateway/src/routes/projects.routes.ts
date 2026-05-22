@@ -3,6 +3,14 @@ import { ProjectsService } from '../services/projects.service';
 
 const router = Router();
 const projectsService = new ProjectsService();
+router.get('/api/projects', async (req: Request, res: Response) => {
+    try {
+        const projects = await projectsService.getAllProjects();
+        res.json(projects);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 router.get('/api/projects/:id', async (req: Request, res: Response) => {
     try {
