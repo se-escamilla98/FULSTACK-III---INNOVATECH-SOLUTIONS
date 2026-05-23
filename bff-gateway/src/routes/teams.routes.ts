@@ -4,6 +4,15 @@ import { TeamsService } from '../services/teams.service';
 const router = Router();
 const teamsService = new TeamsService();
 
+router.get('/api/teams', async (req: Request, res: Response) => {
+    try {
+        const projects = await teamsService.getAllTeams();
+        res.json(projects);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.get('/api/teams/:id', async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
