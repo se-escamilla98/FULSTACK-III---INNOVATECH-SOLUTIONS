@@ -4,6 +4,15 @@ const express_1 = require("express");
 const teams_service_1 = require("../services/teams.service");
 const router = (0, express_1.Router)();
 const teamsService = new teams_service_1.TeamsService();
+router.get('/api/teams', async (req, res) => {
+    try {
+        const projects = await teamsService.getAllTeams();
+        res.json(projects);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 router.get('/api/teams/:id', async (req, res) => {
     try {
         const { id } = req.params;

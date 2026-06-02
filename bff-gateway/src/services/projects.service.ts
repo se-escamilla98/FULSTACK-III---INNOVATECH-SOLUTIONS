@@ -1,10 +1,11 @@
-import  axios  from 'axios';
+import axios from 'axios';
 import dotenv from 'dotenv';
-import { TasksService } from './tasks.service'; // Importa el servicio de tareas para usarlo dentro del servicio de proyectos   
+import { TasksService } from './tasks.service'; 
+
 dotenv.config();  
 
 export class ProjectsService {
-    private readonly tasksService: TasksService; // Instancia del servicio de tareas para usar sus métodos
+    private readonly tasksService: TasksService; 
     private readonly PROJECTS_URL: string;  
 
     constructor() {
@@ -38,14 +39,15 @@ export class ProjectsService {
     }
 
     async updateStatus(id: string, status: string) {
-    if (status === 'COMPLETED') {
-        const tasks = await this.tasksService.getTasksByProject(id);
-        const incompleteTasks = tasks.filter((task: any) => task.status !== 'COMPLETED');
-        if (incompleteTasks.length > 0) {
-            throw new Error('No se puede completar el proyecto con tareas pendientes');
+        if (status === 'COMPLETED') {
+            // CORREGIDO: Forzamos el casteo de tipo a 'any[]' para permitir el uso seguro de .filter()
+            const tasks = await this.tasksService.getTasksByProject(id) as any[];
+            const incompleteTasks = tasks.filter((task: any) => task.status !== 'COMPLETED');
+            if (incompleteTasks.length > 0) {
+                throw new Error('No se puede completar el proyecto con tareas pendientes');
+            }
         }
-    }
-    const response = await axios.patch(`${this.PROJECTS_URL}/projects/${id}/status`, { status });
-    return response.data;
+        const response = await axios.patch(`${this.PROJECTS_URL}/projects/${id}/status`, { status });
+        return response.data;
     }
 }

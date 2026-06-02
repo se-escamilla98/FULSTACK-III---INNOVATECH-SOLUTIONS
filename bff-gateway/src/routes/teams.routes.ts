@@ -4,7 +4,7 @@ import { TeamsService } from '../services/teams.service';
 const router = Router();
 const teamsService = new TeamsService();
 
-router.get('/api/teams', async (req: Request, res: Response) => {
+router.get('/teams', async (req: Request, res: Response) => {
     try {
         const projects = await teamsService.getAllTeams();
         res.json(projects);
@@ -23,7 +23,7 @@ router.get('/api/teams/:id', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/api/teams', async (req: Request, res: Response) => {
+router.post('/teams', async (req: Request, res: Response) => {
     try {
         const teamData = req.body as { name: string; description: string };
         const team = await teamsService.createTeam(teamData);
@@ -33,7 +33,7 @@ router.post('/api/teams', async (req: Request, res: Response) => {
     }
 });
 
-router.delete('/api/teams/:id', async (req: Request, res: Response) => {
+router.delete('/teams/:id', async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
         const team = await teamsService.deleteTeam(id);
@@ -43,7 +43,7 @@ router.delete('/api/teams/:id', async (req: Request, res: Response) => {
     }
 }); 
 
-router.patch('/api/teams/:id', async (req: Request, res: Response) => {
+router.patch('/teams/:id', async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
         const teamData = req.body as { name: string; description: string };
@@ -54,7 +54,7 @@ router.patch('/api/teams/:id', async (req: Request, res: Response) => {
     }
 });
 
-router.patch('/api/teams/:id/status', async (req: Request, res: Response) => {
+router.patch('/teams/:id/status', async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
         const { status } = req.body;

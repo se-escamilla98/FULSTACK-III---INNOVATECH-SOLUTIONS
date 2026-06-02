@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProjectsService = void 0;
 const axios_1 = __importDefault(require("axios"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const tasks_service_1 = require("./tasks.service"); // Importa el servicio de tareas para usarlo dentro del servicio de proyectos   
+const tasks_service_1 = require("./tasks.service");
 dotenv_1.default.config();
 class ProjectsService {
     constructor() {
@@ -35,6 +35,7 @@ class ProjectsService {
     }
     async updateStatus(id, status) {
         if (status === 'COMPLETED') {
+            // CORREGIDO: Forzamos el casteo de tipo a 'any[]' para permitir el uso seguro de .filter()
             const tasks = await this.tasksService.getTasksByProject(id);
             const incompleteTasks = tasks.filter((task) => task.status !== 'COMPLETED');
             if (incompleteTasks.length > 0) {

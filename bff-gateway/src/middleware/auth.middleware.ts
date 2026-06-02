@@ -17,11 +17,15 @@ declare global {
 // Middleware que verifica que el token es valido
 export const verifyToken = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
-  if (!token) {
+  
+  if (!authHeader) {
     return res.status(401).json({ error: 'Acceso denegado. Token requerido.' });
   }
+
+  // Tolerante: extrae el token limpiamente si empieza con "bearer " o "Bearer "
+  const token = authHeader.toLowerCase().startsWith('bearer ') 
+    ? authHeader.split(' ')[1] 
+    : authHeader;
 
   try {
     const decoded = jwt.verify(token, JWT_CONFIG.secret) as { role: string; service: string };

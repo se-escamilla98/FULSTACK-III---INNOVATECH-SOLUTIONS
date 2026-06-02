@@ -7,6 +7,34 @@ const express_1 = require("express");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const jwt_config_1 = require("../config/jwt.config");
 const router = (0, express_1.Router)();
+/**
+ * @openapi
+ * /auth/login:
+ * post:
+ * summary: Iniciar sesión y obtener token JWT
+ * tags: [Autenticación]
+ * requestBody:
+ * required: true
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * required:
+ * - apiKey
+ * - role
+ * properties:
+ * apiKey:
+ * type: string
+ * example: admin-key-innovatech
+ * role:
+ * type: string
+ * example: admin
+ * responses:
+ * 200:
+ * description: Login exitoso, retorna el token JWT
+ * 401:
+ * description: API Key inválida
+ */
 // POST /auth/login -> genera un JWT
 router.post('/auth/login', (req, res) => {
     const { apiKey, role } = req.body;
