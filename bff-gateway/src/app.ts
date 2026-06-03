@@ -23,19 +23,15 @@ app.use(cors({
 
 app.use(express.json());
 
-// 1. Interfaz de Swagger - Pública
+// 1. Interfaz de Swagger - Pública e independiente
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// 2. Rutas de Autenticación - Públicas
+// 2. Rutas de Autenticación - Públicas (No usan /api, entran directo por /auth/login)
 app.use(authRouter);
 
-// 3. Aplicar middleware de autenticación global para todo lo que empiece con /api
-app.use('/api', verifyToken);
-
-// 4. Montar los enrutadores limpios
-app.use(projectsRouter);
-app.use(teamsRouter);
-app.use(tasksRouter);
+// 3. ENCAPSULAR: Aplicamos el token y los enrutadores bajo el prefijo único '/api'
+// De esta forma, todas las rutas de proyectos, tareas y equipos heredarán automáticamente el '/api' y la protección del JWT.
+app.use('/api', verifyToken, [projectsRouter, teamsRouter, tasksRouter]);
 
 app.listen(port, () => {
   console.log(`🚀 BFF-GATEWAY corriendo en http://localhost:${port}`);

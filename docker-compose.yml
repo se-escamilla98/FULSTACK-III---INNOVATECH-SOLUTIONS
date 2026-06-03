@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
 
@@ -44,6 +44,8 @@ services:
 
   ms-tasks:
     build: ./ms-tasks
+    env_file:
+      - ./ms-tasks/.env
     restart: always
     ports:
       - "3001:3001"
@@ -57,6 +59,8 @@ services:
 
   ms-projects:
     build: ./ms-projects
+    env_file:
+      - ./ms-projects/.env
     restart: always
     ports:
       - "3002:3002"
@@ -71,6 +75,8 @@ services:
 
   ms-teams:
     build: ./ms-teams
+    env_file:
+      - ./ms-teams/.env
     restart: always
     ports:
       - "3003:3003"

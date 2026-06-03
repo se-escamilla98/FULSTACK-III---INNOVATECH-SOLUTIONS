@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { TeamService } from '../service/team.service';
+import { TeamService } from '../services/team.service';
 
 const teamService = new TeamService();
 

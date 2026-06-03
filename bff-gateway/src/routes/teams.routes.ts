@@ -13,7 +13,7 @@ router.get('/teams', async (req: Request, res: Response) => {
     }
 });
 
-router.get('/api/teams/:id', async (req: Request, res: Response) => {
+router.get('/teams/:id', async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
         const team = await teamsService.getTeamById(id);
