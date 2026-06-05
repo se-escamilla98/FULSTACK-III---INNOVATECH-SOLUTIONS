@@ -1,0 +1,577 @@
+================================================================================
+     INNOVATECH SOLUTIONS - GUIA COMPLETA DE INSTALACION LIMPIA
+  Arquitectura de Microservicios | JWT Zero Trust | Circuit Breaker
+                     Version 5.0 - Final Definitiva
+================================================================================
+
+INDICE
+  1.  Requisitos previos
+  2.  Instalacion de software base
+  3.  Activar WSL 2 (solo Windows Home)
+  4.  Estructura del proyecto
+  5.  Archivos .env (critico)
+  6.  Archivos tsconfig.json
+  7.  Dockerfiles
+  8.  Archivo .dockerignore (obligatorio)
+  9.  package.json de cada servicio
+  10. Instalar dependencias
+  11. Verificar compilacion local
+  12. docker-compose.yml completo
+  13. Levantar el sistema
+  14. Ejecutar migraciones
+  15. Verificar funcionamiento
+  16. Comandos del dia a dia
+  17. Errores comunes y soluciones
+
+================================================================================
+1. REQUISITOS PREVIOS
+================================================================================
+
+Verificar antes de comenzar ejecutando cada comando en la terminal:
+
+  node --version          -> debe mostrar v22.x.x
+  npm --version           -> debe mostrar v10.x.x
+  docker --version        -> debe mostrar v4.x o superior
+  docker compose version  -> debe mostrar v2.x.x
+  git --version           -> cualquier version reciente
+
+================================================================================
+2. INSTALACION DE SOFTWARE BASE
+================================================================================
+
+Node.js v22 LTS: descargar desde https://nodejs.org
+Docker Desktop:  descargar desde https://www.docker.com/products/docker-desktop
+Git:             descargar desde https://git-scm.com/downloads
+
+Durante la instalacion de Docker Desktop, activar "Use WSL 2 based engine"
+si el equipo tiene Windows Home.
+
+================================================================================
+3. ACTIVAR WSL 2 (SOLO WINDOWS HOME)
+================================================================================
+
+Abrir PowerShell como Administrador y ejecutar en orden:
+
+  wsl --install
+  wsl --set-default-version 2
+  wsl --update
+
+Reiniciar el equipo. Luego en Docker Desktop:
+  Settings > General > activar "Use the WSL 2 based engine"
+  Settings > Resources > WSL Integration > activar distribucion Linux
+  Apply & Restart
+
+Verificar: wsl --status  (debe decir "Default Version: 2")
+
+================================================================================
+4. ESTRUCTURA DEL PROYECTO
+================================================================================
+
+  INNOVATECH-SOLUTIONS/
+  |-- docker-compose.yml
+  |-- bff-gateway/
+  |   |-- Dockerfile
+  |   |-- .dockerignore
+  |   |-- package.json
+  |   |-- tsconfig.json
+  |   |-- .env
+  |   `-- src/
+  |       |-- app.ts
+  |       |-- auth/
+  |       |   `-- auth.routes.ts
+  |       |-- config/
+  |       |   |-- jwt.config.ts
+  |       |   `-- swagger.config.ts
+  |       |-- middleware/
+  |       |   `-- auth.middleware.ts
+  |       |-- routes/
+  |       |   |-- projects.routes.ts
+  |       |   |-- tasks.routes.ts
+  |       |   `-- teams.routes.ts
+  |       `-- services/
+  |           |-- projects.service.ts  <- con Circuit Breaker
+  |           |-- tasks.service.ts     <- con Circuit Breaker
+  |           `-- teams.service.ts     <- con Circuit Breaker
+  |-- ms-projects/
+  |   |-- Dockerfile / .dockerignore / package.json / tsconfig.json / .env
+  |   |-- prisma/schema.prisma
+  |   `-- src/
+  |       |-- app.ts
+  |       |-- controllers/project.controller.ts
+  |       |-- services/project.service.ts
+  |       |-- factories/project.factory.ts
+  |       `-- middlewares/auth.middleware.ts
+  |-- ms-tasks/
+  |   |-- Dockerfile / .dockerignore / package.json / tsconfig.json / .env
+  |   |-- prisma/schema.prisma
+  |   `-- src/
+  |       |-- app.ts
+  |       |-- controllers/task.controller.ts
+  |       |-- services/task.service.ts
+  |       `-- middlewares/auth.middleware.ts
+  `-- ms-teams/
+      |-- Dockerfile / .dockerignore / package.json / tsconfig.json / .env
+      |-- prisma/schema.prisma
+      `-- src/
+          |-- app.ts
+          |-- controllers/team.controller.ts
+          |-- services/team.service.ts
+          |-- factories/team.factory.ts
+          `-- middlewares/auth.middleware.ts
+
+REGLA DE LIMPIEZA: La raiz de cada microservicio solo debe tener
+Dockerfile, .dockerignore, package.json, tsconfig.json, .env, prisma/, src/
+
+================================================================================
+5. ARCHIVOS .env (CRITICO)
+================================================================================
+
+Los .env NO se suben a Git. Crearlos manualmente en cada maquina.
+Las comillas dobles son OBLIGATORIAS en DATABASE_URL.
+Las credenciales deben coincidir EXACTAMENTE con el docker-compose.yml.
+
+--- bff-gateway/.env ---
+PORT=3000
+MS_TASKS_URL=http://localhost:3001
+MS_PROJECTS_URL=http://localhost:3002
+MS_TEAMS_URL=http://localhost:3003
+JWT_SECRET=innovatech-secret-key-2026
+
+--- ms-projects/.env ---
+DATABASE_URL="postgresql://user_projects:password_projects@localhost:5434/db_projects"
+PORT=3002
+MS_TASKS_URL=http://localhost:3001
+JWT_SECRET=innovatech-secret-key-2026
+
+--- ms-tasks/.env ---
+DATABASE_URL="postgresql://johndoe:randompassword@localhost:5433/db_tasks"
+PORT=3001
+JWT_SECRET=innovatech-secret-key-2026
+
+--- ms-teams/.env ---
+DATABASE_URL="postgresql://user_teams:password_teams@localhost:5435/db_teams"
+PORT=3003
+JWT_SECRET=innovatech-secret-key-2026
+
+TABLA DE PUERTOS:
+  Servicio        Puerto App    Puerto BD externo
+  bff-gateway     3000          -
+  ms-tasks        3001          5433
+  ms-projects     3002          5434
+  ms-teams        3003          5435
+
+================================================================================
+6. ARCHIVOS tsconfig.json
+================================================================================
+
+El mismo archivo aplica para los cuatro servicios:
+
+{
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "module": "commonjs",
+    "target": "es2020",
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "exclude": ["node_modules", "dist", "prisma.config.ts"]
+}
+
+NO usar: "module": "nodenext", "verbatimModuleSyntax": true, "target": "esnext"
+
+================================================================================
+7. DOCKERFILES
+================================================================================
+
+--- Dockerfile para ms-projects, ms-tasks, ms-teams (usan Prisma) ---
+FROM node:22-alpine
+RUN apk add --no-cache openssl
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+EXPOSE 3001
+CMD ["node", "dist/app.js"]
+
+Cambiar EXPOSE segun el servicio: ms-tasks=3001, ms-projects=3002, ms-teams=3003
+
+--- Dockerfile para bff-gateway (NO usa Prisma) ---
+FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --include=dev
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["node", "dist/app.js"]
+
+NOTAS CRITICAS:
+- "RUN apk add --no-cache openssl" es OBLIGATORIO en microservicios con Prisma.
+  Sin esta linea ocurre el error "libssl.so.1.1: No such file or directory".
+- El BFF usa "npm install --include=dev" para incluir TypeScript dentro de Docker.
+- El BFF NO necesita openssl ni prisma generate.
+
+================================================================================
+8. ARCHIVO .dockerignore (OBLIGATORIO EN TODOS)
+================================================================================
+
+Sin este archivo Docker copia el node_modules local al contenedor y pisa la
+instalacion de dependencias, causando "sh: tsc: not found" y
+"sh: prisma: not found" aunque esten declarados en el package.json.
+
+Crear .dockerignore en la raiz de CADA microservicio y el BFF con este contenido:
+
+  node_modules
+  dist
+  .env
+
+================================================================================
+9. PACKAGE.JSON DE CADA SERVICIO
+================================================================================
+
+--- package.json para ms-projects, ms-tasks, ms-teams ---
+{
+  "name": "nombre-del-servicio",
+  "version": "1.0.0",
+  "main": "dist/app.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "axios": "^1.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^22.0.0",
+    "prisma": "5.22.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.0"
+  }
+}
+
+--- package.json para bff-gateway ---
+{
+  "name": "bff-gateway",
+  "version": "1.0.0",
+  "main": "dist/app.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "opossum": "^9.0.0",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
+    "typescript": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^22.0.0",
+    "@types/opossum": "^8.1.9",
+    "ts-node-dev": "^2.0.0"
+  }
+}
+
+NOTAS CRITICAS:
+- Prisma fijado en "5.22.0" SIN el simbolo ^ para evitar actualizaciones.
+- jsonwebtoken en dependencies de TODOS los servicios (incluido BFF).
+- opossum y @types/opossum solo en bff-gateway (Circuit Breaker).
+- TypeScript en devDependencies del BFF, el Dockerfile usa --include=dev.
+
+================================================================================
+10. INSTALAR DEPENDENCIAS
+================================================================================
+
+  cd ms-tasks    && npm install && npx prisma generate
+  cd ../ms-projects && npm install && npx prisma generate
+  cd ../ms-teams    && npm install && npx prisma generate
+  cd ../bff-gateway && npm install
+
+================================================================================
+11. VERIFICAR COMPILACION LOCAL
+================================================================================
+
+Antes de dockerizar, verificar que cada servicio compila sin errores:
+
+  cd ms-tasks    && npm run build
+  cd ../ms-projects && npm run build
+  cd ../ms-teams    && npm run build
+  cd ../bff-gateway && npm run build
+
+En TypeScript, silencio absoluto = exito. Si hay errores los lista con
+el archivo y numero de linea exactos.
+
+================================================================================
+12. DOCKER-COMPOSE.YML COMPLETO
+================================================================================
+
+services:
+
+  db-tasks:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: johndoe
+      POSTGRES_PASSWORD: randompassword
+      POSTGRES_DB: db_tasks
+    ports:
+      - "5433:5432"
+    networks:
+      - innovatech-network
+
+  db-projects:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: user_projects
+      POSTGRES_PASSWORD: password_projects
+      POSTGRES_DB: db_projects
+    ports:
+      - "5434:5432"
+    networks:
+      - innovatech-network
+
+  db-teams:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: user_teams
+      POSTGRES_PASSWORD: password_teams
+      POSTGRES_DB: db_teams
+    ports:
+      - "5435:5432"
+    networks:
+      - innovatech-network
+
+  ms-tasks:
+    build: ./ms-tasks
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://johndoe:randompassword@db-tasks:5432/db_tasks
+      PORT: 3001
+      JWT_SECRET: innovatech-secret-key-2026
+    depends_on:
+      - db-tasks
+    networks:
+      - innovatech-network
+
+  ms-projects:
+    build: ./ms-projects
+    restart: always
+    ports:
+      - "3002:3002"
+    environment:
+      DATABASE_URL: postgresql://user_projects:password_projects@db-projects:5432/db_projects
+      PORT: 3002
+      MS_TASKS_URL: http://ms-tasks:3001
+      JWT_SECRET: innovatech-secret-key-2026
+    depends_on:
+      - db-projects
+    networks:
+      - innovatech-network
+
+  ms-teams:
+    build: ./ms-teams
+    restart: always
+    ports:
+      - "3003:3003"
+    environment:
+      DATABASE_URL: postgresql://user_teams:password_teams@db-teams:5432/db_teams
+      PORT: 3003
+      JWT_SECRET: innovatech-secret-key-2026
+    depends_on:
+      - db-teams
+    networks:
+      - innovatech-network
+
+  bff:
+    build: ./bff-gateway
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      MS_TASKS_URL: http://ms-tasks:3001
+      MS_PROJECTS_URL: http://ms-projects:3002
+      MS_TEAMS_URL: http://ms-teams:3003
+      JWT_SECRET: innovatech-secret-key-2026
+    depends_on:
+      - ms-tasks
+      - ms-projects
+      - ms-teams
+    networks:
+      - innovatech-network
+
+networks:
+  innovatech-network:
+    driver: bridge
+
+CONCEPTOS CLAVE DEL DOCKER-COMPOSE:
+  - JWT_SECRET en TODOS los servicios para que Zero Trust funcione.
+  - MS_TASKS_URL: http://ms-tasks:3001 (nombre del contenedor, NO localhost).
+    Dentro de Docker, localhost apunta al mismo contenedor, no a otro servicio.
+  - depends_on garantiza el orden de arranque pero no espera que el servicio
+    este completamente listo, por eso las migraciones se ejecutan por separado.
+
+================================================================================
+13. LEVANTAR EL SISTEMA
+================================================================================
+
+Primer levantamiento o cuando hay cambios en el codigo:
+  docker compose up --build
+
+Si el cache de Docker interfiere con los cambios:
+  docker compose build --no-cache
+  docker compose up
+
+Levantar en segundo plano (modo detached):
+  docker compose up -d --build
+
+Detener todos los servicios:
+  docker compose down
+
+Resultado esperado cuando todo esta bien:
+  ms-tasks-1     | MS-TASKS corriendo en puerto 3001
+  ms-projects-1  | MS-PROJECTS corriendo en http://localhost:3002
+  ms-teams-1     | MS-TEAMS corriendo en http://localhost:3003
+  bff-1          | BFF-GATEWAY corriendo en http://localhost:3000
+  bff-1          | Swagger Unificado disponible en http://localhost:3000/api-docs
+  bff-1          | Autenticacion JWT activada
+
+================================================================================
+14. EJECUTAR MIGRACIONES
+================================================================================
+
+Las migraciones crean las tablas en PostgreSQL segun el schema.prisma.
+REQUISITO: Las bases de datos deben estar corriendo antes de migrar.
+CRITICO: Sin migraciones el sistema falla con errores de "table does not exist"
+         o "socket hang up" cuando el BFF intenta consultar datos.
+
+  cd ms-tasks    && npx prisma migrate dev --name init
+  cd ../ms-projects && npx prisma migrate dev --name init
+  cd ../ms-teams    && npx prisma migrate dev --name init
+
+Si falla con "Authentication failed": el .env tiene credenciales incorrectas.
+Verificar contra la tabla de puertos en la seccion 5.
+
+Si falla con "Environment variable not found: DATABASE_URL": el .env no tiene
+comillas dobles en el valor. Son OBLIGATORIAS.
+
+================================================================================
+15. VERIFICAR FUNCIONAMIENTO
+================================================================================
+
+Swagger disponible en:
+  BFF Unificado: http://localhost:3000/api-docs
+  MS-Tasks:      http://localhost:3001/api-docs
+  MS-Projects:   http://localhost:3002/api-docs
+  MS-Teams:      http://localhost:3003/api-docs
+
+Prueba Zero Trust - sin token debe retornar 401:
+  CMD:      curl.exe http://localhost:3000/api/projects
+  Resultado: {"error":"Acceso denegado. Token requerido."}
+
+Prueba acceso directo con token (backdoor arquitectonico):
+  CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3002/projects
+  Resultado: [] o lista de proyectos (mismo JWT, sin pasar por el BFF)
+
+================================================================================
+16. COMANDOS DEL DIA A DIA
+================================================================================
+
+  docker compose ps                    -> estado de todos los contenedores
+  docker compose logs -f               -> logs en tiempo real de todo
+  docker compose logs -f ms-projects   -> logs de un servicio especifico
+  docker compose restart ms-projects   -> reiniciar un servicio sin detener todo
+  docker compose stop ms-tasks         -> detener un servicio (simula caida)
+  docker compose start ms-tasks        -> volver a levantar un servicio
+  docker compose down -v               -> detener y BORRAR bases de datos
+  docker ps                            -> ver TODOS los contenedores Docker
+  docker stop CONTAINER_ID             -> detener contenedor especifico
+  npx prisma studio                    -> interfaz visual para ver datos en BD
+
+================================================================================
+17. ERRORES COMUNES Y SOLUCIONES
+================================================================================
+
+ERROR: sh: tsc: not found / sh: prisma: not found (Docker)
+  Causa: Falta .dockerignore. Docker copia node_modules local y pisa la
+         instalacion del contenedor.
+  Solucion: Crear .dockerignore en cada servicio con: node_modules / dist / .env
+            Luego ejecutar: docker compose build --no-cache
+
+ERROR: Authentication failed against database server
+  Causa: Credenciales del .env no coinciden con las del docker-compose.yml.
+         Error mas comun al instalar en una maquina nueva con .env diferente.
+  Solucion: Verificar .env contra la tabla de credenciales de la seccion 5.
+
+ERROR: Environment variable not found: DATABASE_URL
+  Causa: Faltan comillas dobles en el .env.
+  Solucion: DATABASE_URL="postgresql://..." (comillas dobles OBLIGATORIAS)
+
+ERROR: The table 'public.Project' does not exist
+  Causa: Migraciones no ejecutadas en esta sesion.
+  Solucion: Ejecutar las tres migraciones de la seccion 14.
+
+ERROR: Bind for 0.0.0.0:5435 failed: port is already allocated
+  Causa: Un contenedor Docker de OTRO proyecto ocupa el puerto.
+  Solucion: docker ps -> identificar el contenedor conflictivo -> docker stop ID
+
+ERROR: socket hang up (en BFF)
+  Causa: El BFF llega al microservicio pero la BD no tiene tablas (migraciones
+         pendientes) o el JWT_SECRET no esta configurado en el microservicio.
+  Solucion: Ejecutar migraciones y verificar JWT_SECRET en docker-compose.yml.
+
+ERROR: Request failed with status code 401 (desde BFF a microservicio)
+  Causa: El BFF no esta reenviando el token JWT en las llamadas axios.
+         Con Zero Trust activo, cada microservicio rechaza peticiones sin JWT.
+  Solucion: Verificar que el authHeaders helper esta siendo usado en cada
+            llamada axios de los services del BFF.
+
+ERROR: Cannot GET /api/projects
+  Causa: La ruta no existe en el router del BFF. Falta agregar GET /api/projects.
+  Solucion: Agregar router.get('/projects', ...) en projects.routes.ts del BFF.
+
+ERROR: Contenedores no levantan silenciosamente
+  Causa: Puerto ocupado por contenedor huerfano de otro proyecto.
+  Solucion: docker ps -> docker stop CONTAINER_ID -> docker compose up
+
+ERROR: GET /tasks/:id atrapa /tasks/project/:projectId
+  Causa: Orden incorrecto de rutas en app.ts. La ruta generica /:id
+         atrapa todas las rutas antes de llegar a la especifica /project/:id.
+  Solucion: La ruta especifica SIEMPRE debe ir antes de la generica:
+    app.get('/tasks/project/:projectId', ...)  <- primero
+    app.get('/tasks/:id', ...)                 <- despues
+
+================================================================================
+         Innovatech Solutions | Desarrollo FullStack III | DuocUC
+                     Version 5.0 - Final Definitiva
+================================================================================

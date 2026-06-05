@@ -1,0 +1,514 @@
+================================================================================
+   INNOVATECH SOLUTIONS - GUIA COMPLETA DE PRUEBAS DE API
+   Swagger + CMD + PowerShell | Zero Trust JWT | Circuit Breaker
+                     Version 5.0 - Final Definitiva
+================================================================================
+
+INDICE
+  1.  Requisitos para las pruebas
+  2.  Como usar Swagger UI
+  3.  Como usar CMD (curl.exe)
+  4.  Como usar PowerShell (Invoke-WebRequest)
+  5.  Autenticacion JWT - Generar y usar tokens
+  6.  Pruebas MS-Projects (puerto 3002)
+  7.  Pruebas MS-Tasks (puerto 3001)
+  8.  Pruebas MS-Teams (puerto 3003)
+  9.  Pruebas BFF Gateway (puerto 3000)
+  10. Acceso directo a microservicios (backdoor Zero Trust)
+  11. Pruebas del Circuit Breaker
+  12. Flujo de integracion completo
+  13. Codigos HTTP de referencia
+
+================================================================================
+1. REQUISITOS PARA LAS PRUEBAS
+================================================================================
+
+Antes de comenzar las pruebas, verificar que el sistema esta corriendo:
+  docker compose up --build
+
+Y que las migraciones estan ejecutadas (se hace UNA vez por instalacion):
+  cd ms-tasks    && npx prisma migrate dev --name init
+  cd ms-projects && npx prisma migrate dev --name init
+  cd ms-teams    && npx prisma migrate dev --name init
+
+Resultado esperado en la terminal de Docker:
+  ms-tasks-1     | MS-TASKS corriendo en puerto 3001
+  ms-projects-1  | MS-PROJECTS corriendo en http://localhost:3002
+  ms-teams-1     | MS-TEAMS corriendo en http://localhost:3003
+  bff-1          | BFF-GATEWAY corriendo en http://localhost:3000
+  bff-1          | Autenticacion JWT activada
+
+URLs de Swagger disponibles:
+  BFF Unificado: http://localhost:3000/api-docs  <- recomendado para pruebas
+  MS-Tasks:      http://localhost:3001/api-docs
+  MS-Projects:   http://localhost:3002/api-docs
+  MS-Teams:      http://localhost:3003/api-docs
+
+================================================================================
+2. COMO USAR SWAGGER UI
+================================================================================
+
+Swagger es la interfaz visual para probar endpoints directamente desde el
+navegador. El BFF tiene un Swagger unificado en http://localhost:3000/api-docs
+que consolida los endpoints de los tres microservicios.
+
+Pasos para probar un endpoint en Swagger:
+  1. Abrir la URL en el navegador.
+  2. Hacer clic en el boton "Authorize" (candado en la esquina superior derecha).
+  3. En el campo "bearerAuth (http, Bearer)" ingresar el token JWT.
+  4. Hacer clic en "Authorize" y luego "Close".
+  5. Expandir el endpoint a probar y hacer clic en "Try it out".
+  6. Completar el body si es necesario y hacer clic en "Execute".
+  7. Ver la respuesta en la seccion "Responses".
+
+================================================================================
+3. COMO USAR CMD (curl.exe)
+================================================================================
+
+En Windows siempre usar "curl.exe" (no "curl") porque PowerShell intercepta
+"curl" y lo convierte en Invoke-WebRequest con sintaxis diferente.
+
+Sintaxis GET:
+  curl.exe -H "Authorization: Bearer TOKEN" URL
+
+Sintaxis POST:
+  curl.exe -X POST URL -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"key\": \"value\"}"
+
+Sintaxis PATCH:
+  curl.exe -X PATCH URL -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"key\": \"value\"}"
+
+Sintaxis DELETE:
+  curl.exe -X DELETE -H "Authorization: Bearer TOKEN" URL
+
+Nota: En CMD las comillas dentro del body se escapan con backslash: \"
+
+================================================================================
+4. COMO USAR POWERSHELL (Invoke-WebRequest)
+================================================================================
+
+PowerShell tiene su propio cliente HTTP con sintaxis diferente.
+Usar siempre -UseBasicParsing para evitar advertencias de seguridad.
+El body usa comillas simples afuera y dobles adentro.
+
+GET:
+  Invoke-WebRequest -Uri "URL" -Method GET -Headers @{Authorization="Bearer TOKEN"} -UseBasicParsing
+
+POST:
+  Invoke-WebRequest -Uri "URL" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer TOKEN"} -Body '{"key": "value"}' -UseBasicParsing
+
+PATCH:
+  Invoke-WebRequest -Uri "URL" -Method PATCH -ContentType "application/json" -Headers @{Authorization="Bearer TOKEN"} -Body '{"key": "value"}' -UseBasicParsing
+
+DELETE:
+  Invoke-WebRequest -Uri "URL" -Method DELETE -Headers @{Authorization="Bearer TOKEN"} -UseBasicParsing
+
+TRUCO: Guardar el token en variable para no copiarlo manualmente cada vez:
+  $response = Invoke-WebRequest -Uri "http://localhost:3000/auth/login" -Method POST -ContentType "application/json" -Body '{"apiKey": "admin-key-innovatech"}' -UseBasicParsing
+  $token = ($response.Content | ConvertFrom-Json).token
+  (ahora usar $token en los comandos siguientes)
+
+================================================================================
+5. AUTENTICACION JWT - GENERAR Y USAR TOKENS
+================================================================================
+
+El sistema implementa Zero Trust: TODOS los endpoints requieren JWT valido,
+tanto en el BFF (puerto 3000) como en cada microservicio directamente
+(puertos 3001, 3002, 3003). La unica excepcion es POST /auth/login.
+
+API Keys disponibles:
+  "admin-key-innovatech"  -> rol admin  (GET, POST, PATCH, DELETE)
+  "reader-key-innovatech" -> rol reader (solo GET)
+
+--- GENERAR TOKEN (POST /auth/login) ---
+
+CMD:
+  curl.exe -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" -d "{\"apiKey\": \"admin-key-innovatech\"}"
+
+PowerShell (guardando en variable):
+  $response = Invoke-WebRequest -Uri "http://localhost:3000/auth/login" -Method POST -ContentType "application/json" -Body '{"apiKey": "admin-key-innovatech"}' -UseBasicParsing
+  $token = ($response.Content | ConvertFrom-Json).token
+
+Resultado esperado (200 OK):
+  {"token":"eyJhbGci...","role":"admin","expiresIn":"24h","message":"Bienvenido, rol admin autorizado"}
+
+--- PROBAR SIN TOKEN (debe retornar 401) ---
+
+CMD:
+  curl.exe http://localhost:3000/api/projects
+  Resultado: {"error":"Acceso denegado. Token requerido."}
+
+--- PROBAR CON TOKEN INVALIDO (debe retornar 403) ---
+
+CMD:
+  curl.exe -H "Authorization: Bearer token-falso" http://localhost:3000/api/projects
+  Resultado: {"error":"Token invalido o expirado."}
+
+================================================================================
+6. PRUEBAS MS-PROJECTS (puerto 3002)
+================================================================================
+
+NOTA: Guardar el ID retornado al crear un proyecto para usarlo en pruebas
+      siguientes de tareas y del circuit breaker.
+
+--- CREAR PROYECTO (POST /projects) ---
+
+CMD:
+  curl.exe -X POST http://localhost:3002/projects -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Proyecto Alpha\", \"description\": \"Descripcion del proyecto\"}"
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3002/projects" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Proyecto Alpha", "description": "Descripcion del proyecto"}' -UseBasicParsing
+
+Resultado esperado (201 Created):
+  {"id":"uuid","name":"Proyecto Alpha","status":"PLANNED","createdAt":"..."}
+
+Prueba de validacion - nombre vacio:
+  Body: {"name": "", "description": "algo"}
+  Resultado esperado (400): {"error": "El nombre es obligatorio"}
+
+--- OBTENER TODOS LOS PROYECTOS (GET /projects) ---
+
+CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3002/projects
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3002/projects" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
+
+--- OBTENER PROYECTO POR ID (GET /projects/:id) ---
+
+CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3002/projects/UUID
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3002/projects/UUID" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
+
+ID inexistente -> (404) {"error": "Proyecto no encontrado"}
+
+--- ACTUALIZAR PROYECTO (PATCH /projects/:id) ---
+
+CMD:
+  curl.exe -X PATCH http://localhost:3002/projects/UUID -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Proyecto Actualizado\"}"
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3002/projects/UUID" -Method PATCH -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Proyecto Actualizado"}' -UseBasicParsing
+
+--- CAMBIAR ESTADO (PATCH /projects/:id/status) ---
+
+Estados validos: PLANNED, IN_PROGRESS, COMPLETED, ON_HOLD, CANCELLED
+
+CMD - cambiar a IN_PROGRESS:
+  curl.exe -X PATCH http://localhost:3002/projects/UUID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"IN_PROGRESS\"}"
+
+CMD - intentar COMPLETED con tareas pendientes (debe fallar):
+  curl.exe -X PATCH http://localhost:3002/projects/UUID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
+  Resultado esperado (400): {"error": "No se puede marcar como finalizado: existen tareas pendientes"}
+
+--- ELIMINAR PROYECTO (DELETE /projects/:id) ---
+
+CMD:
+  curl.exe -X DELETE -H "Authorization: Bearer TOKEN" http://localhost:3002/projects/UUID
+
+================================================================================
+7. PRUEBAS MS-TASKS (puerto 3001)
+================================================================================
+
+REQUISITO: Necesitas un projectId valido de MS-Projects.
+
+--- CREAR TAREA (POST /tasks) ---
+
+CMD:
+  curl.exe -X POST http://localhost:3001/tasks -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Disenar arquitectura\", \"description\": \"Definir patrones\", \"area\": \"Backend\", \"assignedTo\": \"dev-001\", \"teamId\": \"team-001\", \"projectId\": \"UUID-PROYECTO\"}"
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3001/tasks" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Disenar arquitectura", "description": "Definir patrones", "area": "Backend", "assignedTo": "dev-001", "teamId": "team-001", "projectId": "UUID-PROYECTO"}' -UseBasicParsing
+
+Resultado esperado (201 Created):
+  {"id":"uuid","name":"Disenar arquitectura","status":"PENDING",...}
+
+--- OBTENER TAREA POR ID (GET /tasks/:id) ---
+
+CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3001/tasks/UUID-TAREA
+
+--- OBTENER TAREAS POR PROYECTO (GET /tasks/project/:projectId) ---
+
+CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3001/tasks/project/UUID-PROYECTO
+
+--- ACTUALIZAR TAREA (PATCH /tasks/:id) ---
+
+Estados validos: PENDING, IN_PROGRESS, COMPLETED, BLOCKED
+
+CMD:
+  curl.exe -X PATCH http://localhost:3001/tasks/UUID -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3001/tasks/UUID" -Method PATCH -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"status": "COMPLETED"}' -UseBasicParsing
+
+--- ELIMINAR TAREA (DELETE /tasks/:id) ---
+
+CMD:
+  curl.exe -X DELETE -H "Authorization: Bearer TOKEN" http://localhost:3001/tasks/UUID
+
+================================================================================
+8. PRUEBAS MS-TEAMS (puerto 3003)
+================================================================================
+
+--- CREAR EQUIPO (POST /teams) ---
+
+CMD:
+  curl.exe -X POST http://localhost:3003/teams -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Equipo Backend\", \"description\": \"Equipo backend\", \"area\": \"Backend\", \"leaderId\": \"lider-001\", \"members\": [\"dev-001\", \"dev-002\"]}"
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3003/teams" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Equipo Backend", "description": "Equipo backend", "area": "Backend", "leaderId": "lider-001", "members": ["dev-001", "dev-002"]}' -UseBasicParsing
+
+Resultado esperado (201): {"id":"uuid","name":"Equipo Backend","status":"ACTIVE",...}
+
+--- OBTENER TODOS LOS EQUIPOS (GET /teams) ---
+
+CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3003/teams
+
+--- OBTENER EQUIPO POR ID (GET /teams/:id) ---
+
+CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3003/teams/UUID
+
+--- ACTUALIZAR EQUIPO (PATCH /teams/:id) ---
+
+CMD:
+  curl.exe -X PATCH http://localhost:3003/teams/UUID -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Equipo Reforzado\"}"
+
+--- CAMBIAR ESTADO (PATCH /teams/:id/status) ---
+
+Estados validos: ACTIVE, INACTIVE
+
+CMD:
+  curl.exe -X PATCH http://localhost:3003/teams/UUID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"INACTIVE\"}"
+
+--- ELIMINAR EQUIPO (DELETE /teams/:id) ---
+
+CMD:
+  curl.exe -X DELETE -H "Authorization: Bearer TOKEN" http://localhost:3003/teams/UUID
+
+================================================================================
+9. PRUEBAS BFF GATEWAY (puerto 3000)
+================================================================================
+
+El BFF agrupa todas las rutas bajo /api y tiene Swagger unificado en /api-docs.
+La unica ruta publica es POST /auth/login.
+
+Rutas disponibles en el BFF:
+  POST   /auth/login              <- publica
+  GET    /api/projects
+  POST   /api/projects
+  GET    /api/projects/:id
+  PATCH  /api/projects/:id
+  PATCH  /api/projects/:id/status
+  DELETE /api/projects/:id
+  POST   /api/tasks
+  GET    /api/tasks/:id
+  GET    /api/projects/:id/tasks
+  PATCH  /api/tasks/:id
+  DELETE /api/tasks/:id
+  GET    /api/teams
+  POST   /api/teams
+  GET    /api/teams/:id
+  PATCH  /api/teams/:id
+  PATCH  /api/teams/:id/status
+  DELETE /api/teams/:id
+
+--- CREAR PROYECTO VIA BFF ---
+
+CMD:
+  curl.exe -X POST http://localhost:3000/api/projects -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Proyecto via BFF\", \"description\": \"Creado via BFF\"}"
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3000/api/projects" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Proyecto via BFF", "description": "Creado via BFF"}' -UseBasicParsing
+
+--- OBTENER PROYECTOS VIA BFF ---
+
+CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3000/api/projects
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3000/api/projects" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
+
+================================================================================
+10. ACCESO DIRECTO A MICROSERVICIOS (BACKDOOR ZERO TRUST)
+================================================================================
+
+El sistema permite acceso directo a cada microservicio sin pasar por el BFF.
+Esto es util para debugging o para probar un microservicio de forma aislada.
+
+IMPORTANTE: El acceso directo NO compromete la seguridad. Cada microservicio
+tiene su propio middleware verifyToken activo. Sin JWT retorna 401. Con JWT
+invalido retorna 403. El mismo token del BFF funciona para acceso directo.
+
+Esto se llama "backdoor arquitectonico" porque permite aislar y debuggear
+cada microservicio independientemente sin depender del BFF.
+
+Comparacion de rutas:
+  VIA BFF:   http://localhost:3000/api/projects  (pasa por orquestador)
+  DIRECTA:   http://localhost:3002/projects       (va directo al microservicio)
+
+Ambas requieren el mismo JWT. La diferencia es que el BFF puede orquestar
+multiples microservicios en una sola peticion.
+
+CMD - acceso directo con token:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3002/projects
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3001/tasks/project/UUID
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3003/teams
+
+================================================================================
+11. PRUEBAS DEL CIRCUIT BREAKER
+================================================================================
+
+El Circuit Breaker (implementado con Opossum en el BFF) protege al sistema
+cuando un microservicio falla. Cuando el 50% de las llamadas fallan o tardan
+mas de 3 segundos, el circuito se "abre" y retorna el fallback inmediatamente.
+
+CONFIGURACION ACTUAL:
+  timeout: 3000ms               <- llamadas que tardan mas de 3s cuentan como fallo
+  errorThresholdPercentage: 50  <- si el 50% de llamadas fallan, abre el circuito
+  resetTimeout: 10000ms         <- despues de 10s pasa a Half-Open para recuperacion
+
+--- PRUEBA 1: VERIFICAR ESTADO NORMAL (CIRCUITO CLOSED) ---
+
+Con todos los servicios corriendo, el circuito esta en CLOSED.
+Las llamadas llegan al microservicio y retornan datos reales.
+
+PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3000/api/projects" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
+
+Resultado esperado (200): [] o lista real de proyectos.
+
+--- PRUEBA 2: SIMULAR CAIDA DE MS-TASKS (CIRCUITO OPEN) ---
+
+PASO 1: Detener ms-tasks para simular caida:
+  docker compose stop ms-tasks
+
+PASO 2: Llamar a endpoint de tareas via BFF (primera llamada puede tardar 3s):
+  CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3000/api/tasks/UUID-CUALQUIERA
+
+  PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3000/api/tasks/UUID-CUALQUIERA" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
+
+Resultado esperado (200 OK con fallback):
+  {"error": "MS-Tasks no disponible. Intente mas tarde."}
+
+NOTA: El circuit breaker retorna HTTP 200 con mensaje de fallback, NO un
+error 503. El BFF sigue respondiendo de forma controlada.
+
+PASO 3: Hacer mas llamadas - el circuito se abre:
+  Las siguientes llamadas retornan el fallback INMEDIATAMENTE sin esperar
+  el timeout de 3s. Esto confirma que el circuito esta en estado OPEN.
+
+--- PRUEBA 3: FALLBACK DE LISTA VACIA (getAllProjects con MS-Projects caido) ---
+
+PASO 1: Detener ms-projects:
+  docker compose stop ms-projects
+
+PASO 2: Llamar a getAllProjects via BFF:
+  CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3000/api/projects
+
+Resultado esperado (200 OK):
+  []  <- lista vacia, NO un error 500
+
+Para listados, el fallback retorna [] en vez de romper el frontend con un error.
+
+--- PRUEBA 4: RECUPERACION DEL SERVICIO (HALF-OPEN -> CLOSED) ---
+
+PASO 1: Con ms-tasks detenido, esperar 10 segundos (resetTimeout).
+PASO 2: Volver a levantar ms-tasks:
+  docker compose start ms-tasks
+PASO 3: Esperar 5 segundos para que ms-tasks inicialice.
+PASO 4: Llamar al endpoint - el circuito pasa de HALF-OPEN a CLOSED:
+  CMD:
+  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3000/api/tasks/UUID-CUALQUIERA
+
+Resultado esperado: respuesta real del microservicio (no el fallback).
+
+--- TABLA DE FALLBACKS CONFIGURADOS ---
+
+  MS-Tasks  getTasksByProject    -> [] (lista vacia)
+  MS-Tasks  getTaskById          -> {"error": "MS-Tasks no disponible..."}
+  MS-Tasks  createTask           -> {"error": "No se puede crear la tarea..."}
+  MS-Tasks  updateTask           -> {"error": "No se puede actualizar la tarea..."}
+  MS-Tasks  deleteTask           -> {"error": "No se puede eliminar la tarea..."}
+  MS-Projects getAllProjects      -> [] (lista vacia)
+  MS-Projects getProjectById     -> {"error": "MS-Projects no disponible..."}
+  MS-Projects createProject      -> {"error": "No se puede crear el proyecto..."}
+  MS-Projects updateProject      -> {"error": "No se puede actualizar el proyecto..."}
+  MS-Projects deleteProject      -> {"error": "No se puede eliminar el proyecto..."}
+  MS-Projects updateStatus       -> {"error": "No se puede cambiar el estado..."}
+  MS-Teams  getAllTeams           -> [] (lista vacia)
+  MS-Teams  getTeamById          -> {"error": "MS-Teams no disponible..."}
+  MS-Teams  createTeam           -> {"error": "No se puede crear el equipo..."}
+  MS-Teams  updateTeam           -> {"error": "No se puede actualizar el equipo..."}
+  MS-Teams  updateStatus         -> {"error": "No se puede cambiar el estado..."}
+  MS-Teams  deleteTeam           -> {"error": "No se puede eliminar el equipo..."}
+
+================================================================================
+12. FLUJO DE INTEGRACION COMPLETO
+================================================================================
+
+Este flujo valida que los microservicios se comunican correctamente,
+el JWT funciona de extremo a extremo, y las reglas de negocio se cumplen.
+
+PASO 1: Generar token y guardarlo en variable
+  PowerShell:
+  $response = Invoke-WebRequest -Uri "http://localhost:3000/auth/login" -Method POST -ContentType "application/json" -Body '{"apiKey": "admin-key-innovatech"}' -UseBasicParsing
+  $token = ($response.Content | ConvertFrom-Json).token
+
+PASO 2: Crear proyecto via BFF
+  PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3000/api/projects" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Proyecto Test JWT", "description": "Prueba integracion completa"}' -UseBasicParsing
+  Guardar PROJECT_ID del resultado.
+
+PASO 3: Crear tarea asociada al proyecto
+  PowerShell:
+  Invoke-WebRequest -Uri "http://localhost:3000/api/tasks" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Tarea Test", "description": "Tarea de prueba", "area": "Backend", "assignedTo": "dev-001", "teamId": "team-001", "projectId": "PROJECT_ID"}' -UseBasicParsing
+  Guardar TASK_ID del resultado.
+
+PASO 4: Intentar completar proyecto (DEBE FALLAR - regla de negocio)
+  CMD:
+  curl.exe -X PATCH http://localhost:3002/projects/PROJECT_ID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
+  Resultado esperado (400): {"error": "No se puede marcar como finalizado: existen tareas pendientes"}
+
+PASO 5: Completar la tarea
+  CMD:
+  curl.exe -X PATCH http://localhost:3001/tasks/TASK_ID -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
+  Resultado esperado (200): tarea con status COMPLETED.
+
+PASO 6: Completar el proyecto (DEBE FUNCIONAR)
+  CMD:
+  curl.exe -X PATCH http://localhost:3002/projects/PROJECT_ID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
+  Resultado esperado (200): proyecto con status COMPLETED.
+
+RESUMEN:
+  PASO 1 -> Token JWT generado                               OK
+  PASO 2 -> Proyecto creado con status PLANNED               OK
+  PASO 3 -> Tarea creada con status PENDING                  OK
+  PASO 4 -> Proyecto bloqueado por tarea pendiente           OK (regla de negocio)
+  PASO 5 -> Tarea marcada como COMPLETED                     OK
+  PASO 6 -> Proyecto marcado como COMPLETED                  OK
+
+================================================================================
+13. CODIGOS HTTP DE REFERENCIA
+================================================================================
+
+  200 OK          -> Operacion exitosa (GET, PATCH, DELETE)
+  201 Created     -> Recurso creado exitosamente (POST)
+  400 Bad Request -> Error de validacion o regla de negocio rota
+  401 Unauthorized -> Sin token JWT o token ausente en el header
+  403 Forbidden   -> Token invalido, expirado, o rol insuficiente
+  404 Not Found   -> El recurso no existe en la base de datos
+  500 Server Error -> Error inesperado (revisar logs con docker compose logs)
+
+================================================================================
+         Innovatech Solutions | Desarrollo FullStack III | DuocUC
+                     Version 5.0 - Final Definitiva
+================================================================================
+ENDOFFILE

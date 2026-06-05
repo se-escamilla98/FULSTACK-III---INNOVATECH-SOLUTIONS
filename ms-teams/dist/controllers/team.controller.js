@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TeamController = void 0;
-const team_service_1 = require("../service/team.service");
+const team_service_1 = require("../services/team.service");
 const teamService = new team_service_1.TeamService();
 class TeamController {
     async create(req, res) {

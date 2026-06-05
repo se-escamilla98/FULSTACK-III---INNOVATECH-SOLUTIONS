@@ -7,17 +7,15 @@ const app = express();
 const taskController = new TaskController();
 
 app.use(express.json());
-
-// 1. Interfaz pública de Swagger
 setupSwagger(app);
 
-// 2. MIDDLEWARE ZERO TRUST: Protege todas las rutas de tareas
+// ZERO TRUST: protege todas las rutas /tasks
 app.use('/tasks', verifyToken);
 
-// 3. CRUD completo protegido
-app.post('/tasks',                      (req, res) => taskController.createTask(req, res));
-app.get('/tasks/:id',                   (req, res) => taskController.getTaskById(req, res));
+// IMPORTANTE: la ruta más específica va PRIMERO
 app.get('/tasks/project/:projectId',    (req, res) => taskController.getTasksByProject(req, res));
+app.get('/tasks/:id',                   (req, res) => taskController.getTaskById(req, res));
+app.post('/tasks',                      (req, res) => taskController.createTask(req, res));
 app.patch('/tasks/:id',                 (req, res) => taskController.updateTask(req, res));
 app.delete('/tasks/:id',                (req, res) => taskController.deleteTask(req, res));
 

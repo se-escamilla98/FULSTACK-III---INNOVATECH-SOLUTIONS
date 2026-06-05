@@ -1,8 +1,4 @@
-
-
 services:
-
-  # ==================== BASES DE DATOS ====================
 
   db-tasks:
     image: postgres:15
@@ -40,18 +36,15 @@ services:
     networks:
       - innovatech-network
 
-  # ==================== MICROSERVICIOS ====================
-
   ms-tasks:
     build: ./ms-tasks
-    env_file:
-      - ./ms-tasks/.env
     restart: always
     ports:
       - "3001:3001"
     environment:
       DATABASE_URL: postgresql://johndoe:randompassword@db-tasks:5432/db_tasks
       PORT: 3001
+      JWT_SECRET: innovatech-secret-key-2026
     depends_on:
       - db-tasks
     networks:
@@ -59,15 +52,14 @@ services:
 
   ms-projects:
     build: ./ms-projects
-    env_file:
-      - ./ms-projects/.env
     restart: always
     ports:
       - "3002:3002"
     environment:
       DATABASE_URL: postgresql://user_projects:password_projects@db-projects:5432/db_projects
       PORT: 3002
-      MS_TASKS_URL: http://ms-tasks:3001 
+      MS_TASKS_URL: http://ms-tasks:3001
+      JWT_SECRET: innovatech-secret-key-2026
     depends_on:
       - db-projects
     networks:
@@ -75,21 +67,17 @@ services:
 
   ms-teams:
     build: ./ms-teams
-    env_file:
-      - ./ms-teams/.env
     restart: always
     ports:
       - "3003:3003"
     environment:
       DATABASE_URL: postgresql://user_teams:password_teams@db-teams:5432/db_teams
       PORT: 3003
-      MS_PROJECTS_URL: http://ms-projects:3002
+      JWT_SECRET: innovatech-secret-key-2026
     depends_on:
       - db-teams
     networks:
       - innovatech-network
-
-  # ==================== BFF ====================
 
   bff:
     build: ./bff-gateway
@@ -101,6 +89,7 @@ services:
       MS_TASKS_URL: http://ms-tasks:3001
       MS_PROJECTS_URL: http://ms-projects:3002
       MS_TEAMS_URL: http://ms-teams:3003
+      JWT_SECRET: innovatech-secret-key-2026
     depends_on:
       - ms-tasks
       - ms-projects

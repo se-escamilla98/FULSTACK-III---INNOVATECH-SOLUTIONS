@@ -17,25 +17,21 @@ export class TaskController {
 
   // Obtener Tareas por Proyecto
   async getTasksByProject(req: Request, res: Response) {
-    try {
-      const { taskId } = req.params as { taskId: string };
-      const tasks = await taskService.getTasksByProject(taskId);
-      res.status(200).json(tasks);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
+  try {
+    const { projectId } = req.params; // <- era "taskId", estaba incorrecto
+    const tasks = await taskService.getTasksByProject(projectId);
+    res.status(200).json(tasks);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
+}
 
-  // ACTUALIZAR Tarea (El que agregamos ahora)
   async updateTask(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const data = req.body;
-      const updatedTask = await taskService.updateTask(id, data);
-      if (!id){
-        res.status(404).json({ error:"Tarea no Existe"})
-      } 
-      res.status(200).json(updatedTask);
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    const updatedTask = await taskService.updateTask(id, data);
+    res.status(200).json(updatedTask);
     } catch (error: any) {
       res.status(404).json({ error: error.message });
     }
