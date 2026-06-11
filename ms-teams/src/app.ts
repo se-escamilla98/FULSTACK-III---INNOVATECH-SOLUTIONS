@@ -13,6 +13,10 @@ const teamController = new TeamController();
 app.use(express.json());
 setupSwagger(app);
 
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', service: 'ms-teams', uptime: Math.floor(process.uptime()) });
+});
+
 // ZERO TRUST MIDDLEWARE
 app.use('/teams', verifyToken);
 

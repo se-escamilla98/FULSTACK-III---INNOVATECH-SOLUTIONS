@@ -9,6 +9,10 @@ const taskController = new TaskController();
 app.use(express.json());
 setupSwagger(app);
 
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', service: 'ms-tasks', uptime: Math.floor(process.uptime()) });
+});
+
 // ZERO TRUST: protege todas las rutas /tasks
 app.use('/tasks', verifyToken);
 

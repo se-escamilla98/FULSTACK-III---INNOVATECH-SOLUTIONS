@@ -15,7 +15,12 @@ app.use(express.json());
 // 1. Interfaz de Swagger - Pública (Sin token)
 setupSwagger(app);
 
-// 2. MIDDLEWARE DE SEGURIDAD ZERO TRUST
+// 2. Health check público
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', service: 'ms-projects', uptime: Math.floor(process.uptime()) });
+});
+
+// 3. MIDDLEWARE DE SEGURIDAD ZERO TRUST
 // Protege automáticamente todo lo que empiece con /projects
 app.use('/projects', verifyToken);
 

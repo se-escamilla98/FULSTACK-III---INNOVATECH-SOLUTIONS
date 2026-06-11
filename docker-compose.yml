@@ -1,5 +1,25 @@
 services:
 
+  # ==================== TRAEFIK - LOAD BALANCER ====================
+
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--api.insecure=true"
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - innovatech-network
+    restart: always
+
+  # ==================== BASES DE DATOS ====================
+
   db-tasks:
     image: postgres:15
     restart: always
@@ -36,11 +56,12 @@ services:
     networks:
       - innovatech-network
 
+  # ==================== MICROSERVICIOS ====================
+
   ms-tasks:
     build: ./ms-tasks
+    image: innovatech-ms-tasks:latest
     restart: always
-    ports:
-      - "3001:3001"
     environment:
       DATABASE_URL: postgresql://johndoe:randompassword@db-tasks:5432/db_tasks
       PORT: 3001
@@ -52,9 +73,8 @@ services:
 
   ms-projects:
     build: ./ms-projects
+    image: innovatech-ms-projects:latest
     restart: always
-    ports:
-      - "3002:3002"
     environment:
       DATABASE_URL: postgresql://user_projects:password_projects@db-projects:5432/db_projects
       PORT: 3002
@@ -67,9 +87,8 @@ services:
 
   ms-teams:
     build: ./ms-teams
+    image: innovatech-ms-teams:latest
     restart: always
-    ports:
-      - "3003:3003"
     environment:
       DATABASE_URL: postgresql://user_teams:password_teams@db-teams:5432/db_teams
       PORT: 3003
@@ -79,11 +98,15 @@ services:
     networks:
       - innovatech-network
 
+  # ==================== BFF GATEWAY ====================
+  # Sin puerto expuesto al host — Traefik balancea el trafico
+  # Compose: docker compose up --build --scale bff=3
+  # Swarm:   .\deploy-swarm.ps1
+
   bff:
     build: ./bff-gateway
+    image: innovatech-bff:latest
     restart: always
-    ports:
-      - "3000:3000"
     environment:
       PORT: 3000
       MS_TASKS_URL: http://ms-tasks:3001
@@ -94,6 +117,43 @@ services:
       - ms-tasks
       - ms-projects
       - ms-teams
+    networks:
+      - innovatech-network
+
+  # ==================== MONITOR DE RECURSOS ====================
+
+  ms-monitor:
+    build: ./ms-monitor
+    image: innovatech-ms-monitor:latest
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      MS_TASKS_URL: http://ms-tasks:3001
+      MS_PROJECTS_URL: http://ms-projects:3002
+      MS_TEAMS_URL: http://ms-teams:3003
+      BFF_URL: http://bff:3000
+    depends_on:
+      - ms-tasks
+      - ms-projects
+      - ms-teams
+      - bff
+    networks:
+      - innovatech-network
+
+  # ==================== FRONTEND ====================
+
+  frontend:
+    build: ./frontend-web
+    image: innovatech-frontend:latest
+    restart: always
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_BFF_URL=http://localhost
+    depends_on:
+      - bff
     networks:
       - innovatech-network
 

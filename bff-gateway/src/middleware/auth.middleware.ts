@@ -7,6 +7,8 @@ declare global {
   namespace Express {
     interface Request {
       user?: {
+        username: string;
+        displayName: string;
         role: string;
         service: string;
       };
@@ -28,7 +30,7 @@ export const verifyToken = (req: Request, res: Response, next: NextFunction) => 
     : authHeader;
 
   try {
-    const decoded = jwt.verify(token, JWT_CONFIG.secret) as { role: string; service: string };
+    const decoded = jwt.verify(token, JWT_CONFIG.secret) as { username: string; displayName: string; role: string; service: string };
     req.user = decoded;
     next();
   } catch (error) {

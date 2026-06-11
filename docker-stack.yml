@@ -1,0 +1,218 @@
+configs:
+  traefik-dynamic:
+    external: true
+
+volumes:
+  db-tasks-data:
+  db-projects-data:
+  db-teams-data:
+
+networks:
+  innovatech-overlay:
+    driver: overlay
+    attachable: true
+
+services:
+
+  # ==================== TRAEFIK ====================
+
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--api.insecure=true"
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - target: 80
+        published: 80
+        mode: ingress
+      - target: 8080
+        published: 8080
+        mode: ingress
+    configs:
+      - source: traefik-dynamic
+        target: /etc/traefik/dynamic.yml
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  # ==================== BASES DE DATOS ====================
+
+  db-tasks:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: johndoe
+      POSTGRES_PASSWORD: randompassword
+      POSTGRES_DB: db_tasks
+    volumes:
+      - db-tasks-data:/var/lib/postgresql/data
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  db-projects:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user_projects
+      POSTGRES_PASSWORD: password_projects
+      POSTGRES_DB: db_projects
+    volumes:
+      - db-projects-data:/var/lib/postgresql/data
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  db-teams:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user_teams
+      POSTGRES_PASSWORD: password_teams
+      POSTGRES_DB: db_teams
+    volumes:
+      - db-teams-data:/var/lib/postgresql/data
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  # ==================== MICROSERVICIOS ====================
+
+  ms-tasks:
+    image: innovatech-ms-tasks:latest
+    environment:
+      DATABASE_URL: postgresql://johndoe:randompassword@db-tasks:5432/db_tasks
+      PORT: 3001
+      JWT_SECRET: innovatech-secret-key-2026
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+  ms-projects:
+    image: innovatech-ms-projects:latest
+    environment:
+      DATABASE_URL: postgresql://user_projects:password_projects@db-projects:5432/db_projects
+      PORT: 3002
+      MS_TASKS_URL: http://ms-tasks:3001
+      JWT_SECRET: innovatech-secret-key-2026
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+  ms-teams:
+    image: innovatech-ms-teams:latest
+    environment:
+      DATABASE_URL: postgresql://user_teams:password_teams@db-teams:5432/db_teams
+      PORT: 3003
+      JWT_SECRET: innovatech-secret-key-2026
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+  # ==================== BFF GATEWAY ====================
+  # 3 replicas — Swarm mantiene este numero automaticamente
+  # Si una instancia cae, Swarm levanta una nueva sin intervencion manual
+  # update_config: zero-downtime rolling updates
+
+  bff:
+    image: innovatech-bff:latest
+    environment:
+      PORT: 3000
+      MS_TASKS_URL: http://ms-tasks:3001
+      MS_PROJECTS_URL: http://ms-projects:3002
+      MS_TEAMS_URL: http://ms-teams:3003
+      JWT_SECRET: innovatech-secret-key-2026
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 3
+      endpoint_mode: dnsrr
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+
+  # ==================== MONITOR ====================
+
+  ms-monitor:
+    image: innovatech-ms-monitor:latest
+    environment:
+      PORT: 4000
+      MS_TASKS_URL: http://ms-tasks:3001
+      MS_PROJECTS_URL: http://ms-projects:3002
+      MS_TEAMS_URL: http://ms-teams:3003
+      BFF_URL: http://bff:3000
+    ports:
+      - target: 4000
+        published: 4000
+        mode: ingress
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ==================== FRONTEND ====================
+
+  frontend:
+    image: innovatech-frontend:latest
+    environment:
+      - VITE_BFF_URL=http://localhost
+    ports:
+      - target: 5173
+        published: 5173
+        mode: ingress
+    networks:
+      - innovatech-overlay
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
