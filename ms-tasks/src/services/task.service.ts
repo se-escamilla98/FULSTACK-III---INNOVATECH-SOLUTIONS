@@ -1,4 +1,5 @@
 import { PrismaClient, Task } from '@prisma/client';
+import { TaskFactory } from '../factories/task.factory';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -6,26 +7,12 @@ dotenv.config();
 const prisma = new PrismaClient();
 
 export class TaskService {
-  
-  // 1. CREAR TAREA
-  async createTask(data: any): Promise<Task> {
-    if (!data.name || data.name.trim() === "") {
-      throw new Error("El nombre de la tarea es obligatorio");
-    }
-    if (!data.projectId) {
-      throw new Error("Toda tarea debe estar asociada a un Proyecto");
-    }
 
+  // 1. CREAR TAREA (ahora usa TaskFactory como los otros microservicios)
+  async createTask(data: any): Promise<Task> {
+    const taskData = TaskFactory.create(data);
     return await prisma.task.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        area: data.area,
-        assignedTo: data.assignedTo,
-        teamId: data.teamId,
-        projectId: data.projectId,
-        status: data.status || 'PENDING'
-      }
+      data: taskData as any
     });
   }
 
@@ -50,6 +37,8 @@ export class TaskService {
       throw new Error(`No se pudo actualizar la tarea con ID ${id}. Verifique si existe.`);
     }
   }
+
+  // 4. ELIMINAR TAREA
   async deleteTask(id: string): Promise<Task> {
     try {
       return await prisma.task.delete({
@@ -60,8 +49,8 @@ export class TaskService {
     }
   }
 
+  // 5. OBTENER POR ID
   async getTaskById(id: string): Promise<Task | null> {
     return await prisma.task.findUnique({ where: { id } });
   }
-
 }
