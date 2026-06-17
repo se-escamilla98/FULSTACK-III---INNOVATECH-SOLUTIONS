@@ -16,15 +16,11 @@ export class TeamController {
   async getAll(req: Request, res: Response) {
     try {
       const teams = await teamService.getAll();
-      if (teams.length === 0) {
-        return res.status(404).json({ error: 'No hay equipos registrados' });
-      }
       res.json(teams);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   }
-
   async getTeamById(req: Request, res: Response) {
     try {
       const { id } = req.params;

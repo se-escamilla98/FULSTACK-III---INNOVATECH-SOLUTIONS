@@ -1,8 +1,6 @@
-
 generator client {
   provider = "prisma-client-js"
 }
-
 
 datasource db {
   provider = "postgresql"
@@ -13,14 +11,14 @@ enum TeamStatus {
   ACTIVE
   INACTIVE
 }
+
 model Team {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   name        String
   description String
-  status      TeamStatus   @default(ACTIVE)	
-  leaderId    String   @default(uuid())
-  area	      String
-  integrantes String[]	
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      TeamStatus @default(ACTIVE)
+  leaderId    String     @default(uuid())
+  area        String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
