@@ -11,5 +11,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["jest", "node"]
   },
-  "exclude": ["jest.config.ts"]
+  "exclude": ["jest.config.ts", "dist"]
 }
