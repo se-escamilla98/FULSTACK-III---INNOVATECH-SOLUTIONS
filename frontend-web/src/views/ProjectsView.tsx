@@ -22,13 +22,16 @@ const statusStyle = (status: string): React.CSSProperties => {
   return { ...map[status] || map.PLANNED, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 700 };
 };
 
-export default function ProjectsView() {
+export default function ProjectsView({ role }: { role: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', description: '' });
   const [saving, setSaving] = useState(false);
+
+  // Solo admin puede crear, editar y eliminar proyectos
+  const canEdit = role === 'admin';
 
   const load = async () => {
     setLoading(true);
@@ -83,14 +86,18 @@ export default function ProjectsView() {
     <div>
       <div style={s.toolbar}>
         <h2 style={s.viewTitle}>Proyectos <span style={s.badge}>{projects.length}</span></h2>
-        <button style={s.btnPrimary} onClick={() => setShowModal(true)}>+ Nuevo Proyecto</button>
+        {canEdit && (
+          <button style={s.btnPrimary} onClick={() => setShowModal(true)}>+ Nuevo Proyecto</button>
+        )}
       </div>
 
       {error && <div style={s.alertError}>{error} <button style={s.closeBtn} onClick={() => setError(null)}>✕</button></div>}
       {loading && <p style={s.loadingText}>Cargando proyectos...</p>}
 
       {!loading && projects.length === 0 && (
-        <div style={s.empty}>No hay proyectos aún. ¡Crea el primero!</div>
+        <div style={s.empty}>
+          {canEdit ? 'No hay proyectos aún. ¡Crea el primero!' : 'No hay proyectos aún.'}
+        </div>
       )}
 
       <div style={s.grid}>
@@ -98,20 +105,26 @@ export default function ProjectsView() {
           <div key={p.id} style={s.card}>
             <div style={s.cardHeader}>
               <span style={statusStyle(p.status)}>{p.status}</span>
-              <button style={s.btnDelete} onClick={() => handleDelete(p.id, p.name)}>✕</button>
+              {canEdit && (
+                <button style={s.btnDelete} onClick={() => handleDelete(p.id, p.name)}>✕</button>
+              )}
             </div>
             <h3 style={s.cardTitle}>{p.name}</h3>
             <p style={s.cardDesc}>{p.description}</p>
             <div style={s.cardFooter}>
-              <select
-                value={p.status}
-                onChange={e => handleStatusChange(p.id, e.target.value)}
-                style={s.select}
-              >
-                {PROJECT_STATUSES.map(st => (
-                  <option key={st} value={st}>{st}</option>
-                ))}
-              </select>
+              {canEdit ? (
+                <select
+                  value={p.status}
+                  onChange={e => handleStatusChange(p.id, e.target.value)}
+                  style={s.select}
+                >
+                  {PROJECT_STATUSES.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              ) : (
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Estado: <strong>{p.status}</strong></span>
+              )}
             </div>
           </div>
         ))}

@@ -10,6 +10,7 @@ type Tab = 'projects' | 'tasks' | 'teams';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [displayName, setDisplayName]         = useState('');
+  const [role, setRole]                       = useState('');
   const [username, setUsername]               = useState('');
   const [password, setPassword]               = useState('');
   const [error, setError]                     = useState<string | null>(null);
@@ -19,9 +20,11 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem('innovatech_token');
     const name  = localStorage.getItem('innovatech_display');
+    const savedRole = localStorage.getItem('innovatech_role');
     if (token) {
       setIsAuthenticated(true);
       setDisplayName(name || '');
+      setRole(savedRole || 'reader');
     }
   }, []);
 
@@ -33,7 +36,9 @@ function App() {
       const response = await axios.post(`${BFF_BASE}/auth/login`, { username, password });
       localStorage.setItem('innovatech_token',   response.data.token);
       localStorage.setItem('innovatech_display',  response.data.displayName);
+      localStorage.setItem('innovatech_role',     response.data.role);
       setDisplayName(response.data.displayName);
+      setRole(response.data.role);
       setIsAuthenticated(true);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Error al autenticar contra el BFF');
@@ -45,10 +50,18 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('innovatech_token');
     localStorage.removeItem('innovatech_display');
+    localStorage.removeItem('innovatech_role');
     setIsAuthenticated(false);
     setDisplayName('');
+    setRole('');
     setUsername('');
     setPassword('');
+  };
+
+  const roleBadge = () => {
+    if (role === 'admin') return { label: 'Admin', bg: '#2563eb' };
+    if (role === 'developer') return { label: 'Developer', bg: '#059669' };
+    return { label: 'Lector', bg: '#6b7280' };
   };
 
   if (!isAuthenticated) {
@@ -91,6 +104,7 @@ function App() {
     );
   }
 
+  const badge = roleBadge();
   const tabs: { key: Tab; label: string }[] = [
     { key: 'projects', label: 'Proyectos' },
     { key: 'tasks',    label: 'Tareas'    },
@@ -105,7 +119,22 @@ function App() {
           <p style={s.headerSub}>Panel de Control · FullStack III DuocUC</p>
         </div>
         <div style={s.headerRight}>
-          {displayName && <span style={s.headerUser}>Hola, {displayName}</span>}
+          {displayName && (
+            <span style={s.headerUser}>
+              Hola, {displayName}
+              <span style={{
+                marginLeft: '8px',
+                background: badge.bg,
+                color: '#fff',
+                padding: '2px 10px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 700,
+              }}>
+                {badge.label}
+              </span>
+            </span>
+          )}
           <button onClick={handleLogout} style={s.btnLogout}>Cerrar Sesión</button>
         </div>
       </header>
@@ -123,9 +152,9 @@ function App() {
       </nav>
 
       <main style={s.main}>
-        {activeTab === 'projects' && <ProjectsView />}
-        {activeTab === 'tasks'    && <TasksView />}
-        {activeTab === 'teams'    && <TeamsView />}
+        {activeTab === 'projects' && <ProjectsView role={role} />}
+        {activeTab === 'tasks'    && <TasksView role={role} />}
+        {activeTab === 'teams'    && <TeamsView role={role} />}
       </main>
     </div>
   );
@@ -170,7 +199,7 @@ const s: Record<string, React.CSSProperties> = {
   headerTitle: { margin: 0, fontSize: '20px', fontWeight: 700 },
   headerSub:   { margin: '2px 0 0 0', fontSize: '12px', color: '#93c5fd' },
   headerRight: { display: 'flex', alignItems: 'center', gap: '14px' },
-  headerUser:  { color: '#bfdbfe', fontSize: '14px', fontWeight: 500 },
+  headerUser:  { color: '#bfdbfe', fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center' },
   btnLogout: {
     padding: '8px 16px', border: '1px solid #ef4444', borderRadius: '6px',
     background: 'transparent', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '13px',

@@ -19,7 +19,7 @@ const statusStyle = (status: string): React.CSSProperties => {
   return { ...map[status] || map.ACTIVE, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 700 };
 };
 
-export default function TeamsView() {
+export default function TeamsView({ role }: { role: string }) {
   const [teams, setTeams]       = useState<Team[]>([]);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
@@ -28,6 +28,9 @@ export default function TeamsView() {
   const [form, setForm] = useState({
     name: '', description: '', area: '', leaderId: '', membersStr: '',
   });
+
+  // Solo admin puede crear, editar y eliminar equipos
+  const canEdit = role === 'admin';
 
   const load = async () => {
     setLoading(true);
@@ -93,14 +96,18 @@ export default function TeamsView() {
     <div>
       <div style={s.toolbar}>
         <h2 style={s.viewTitle}>Equipos <span style={s.badge}>{teams.length}</span></h2>
-        <button style={s.btnPrimary} onClick={() => setShowModal(true)}>+ Nuevo Equipo</button>
+        {canEdit && (
+          <button style={s.btnPrimary} onClick={() => setShowModal(true)}>+ Nuevo Equipo</button>
+        )}
       </div>
 
       {error && <div style={s.alertError}>{error} <button style={s.closeBtn} onClick={() => setError(null)}>✕</button></div>}
       {loading && <p style={s.loadingText}>Cargando equipos...</p>}
 
       {!loading && teams.length === 0 && (
-        <div style={s.empty}>No hay equipos aún. ¡Crea el primero!</div>
+        <div style={s.empty}>
+          {canEdit ? 'No hay equipos aún. ¡Crea el primero!' : 'No hay equipos aún.'}
+        </div>
       )}
 
       <div style={s.grid}>
@@ -108,7 +115,9 @@ export default function TeamsView() {
           <div key={team.id} style={{ ...s.card, borderTop: `4px solid ${team.status === 'ACTIVE' ? '#16a34a' : '#9ca3af'}` }}>
             <div style={s.cardHeader}>
               <span style={statusStyle(team.status)}>{team.status}</span>
-              <button style={s.btnDelete} onClick={() => handleDelete(team.id, team.name)}>✕</button>
+              {canEdit && (
+                <button style={s.btnDelete} onClick={() => handleDelete(team.id, team.name)}>✕</button>
+              )}
             </div>
             <h3 style={s.cardTitle}>{team.name}</h3>
             <p style={s.cardDesc}>{team.description}</p>
@@ -124,12 +133,16 @@ export default function TeamsView() {
               </div>
             )}
             <div style={s.cardFooter}>
-              <button
-                style={team.status === 'ACTIVE' ? s.btnWarning : s.btnSuccess}
-                onClick={() => handleStatusToggle(team)}
-              >
-                {team.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
-              </button>
+              {canEdit ? (
+                <button
+                  style={team.status === 'ACTIVE' ? s.btnWarning : s.btnSuccess}
+                  onClick={() => handleStatusToggle(team)}
+                >
+                  {team.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
+                </button>
+              ) : (
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Estado: <strong>{team.status}</strong></span>
+              )}
             </div>
           </div>
         ))}

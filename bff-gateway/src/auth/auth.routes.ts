@@ -15,7 +15,7 @@ const USERS: Record<string, { passwordHash: string; role: string; displayName: s
   },
   sebastian: {
     passwordHash: bcrypt.hashSync('duoc2026', 10),
-    role: 'admin',
+    role: 'developer',
     displayName: 'Sebastián',
   },
   lector: {

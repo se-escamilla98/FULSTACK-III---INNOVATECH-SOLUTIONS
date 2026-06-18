@@ -26,7 +26,7 @@ const statusStyle = (status: string): React.CSSProperties => {
   return { ...map[status] || map.PENDING, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 700 };
 };
 
-export default function TasksView() {
+export default function TasksView({ role }: { role: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams,    setTeams]    = useState<Team[]>([]);
   const [tasks,    setTasks]    = useState<Task[]>([]);
@@ -38,6 +38,9 @@ export default function TasksView() {
   const [form, setForm] = useState({
     name: '', description: '', area: '', assignedTo: '', teamId: '',
   });
+
+  // Admin y Developer pueden gestionar tareas
+  const canEdit = role === 'admin' || role === 'developer';
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -114,13 +117,15 @@ export default function TasksView() {
           Tareas
           {tasks.length > 0 && <span style={s.badge}>{tasks.length}</span>}
         </h2>
-        <button
-          style={{ ...s.btnPrimary, opacity: selectedProject ? 1 : 0.5 }}
-          disabled={!selectedProject}
-          onClick={() => setShowModal(true)}
-        >
-          + Nueva Tarea
-        </button>
+        {canEdit && (
+          <button
+            style={{ ...s.btnPrimary, opacity: selectedProject ? 1 : 0.5 }}
+            disabled={!selectedProject}
+            onClick={() => setShowModal(true)}
+          >
+            + Nueva Tarea
+          </button>
+        )}
       </div>
 
       <div style={s.filterBar}>
@@ -141,7 +146,9 @@ export default function TasksView() {
       {loading && <p style={s.loadingText}>Cargando tareas...</p>}
 
       {!loading && selectedProject && tasks.length === 0 && (
-        <div style={s.empty}>No hay tareas para este proyecto. ¡Crea la primera!</div>
+        <div style={s.empty}>
+          {canEdit ? 'No hay tareas para este proyecto. ¡Crea la primera!' : 'No hay tareas para este proyecto.'}
+        </div>
       )}
       {!selectedProject && (
         <div style={s.empty}>Selecciona un proyecto para ver sus tareas.</div>
@@ -160,16 +167,22 @@ export default function TasksView() {
               <p style={s.cardMeta}>Asignado a: <strong>{t.assignedTo}</strong></p>
             </div>
             <div style={s.cardRight}>
-              <select
-                value={t.status}
-                onChange={e => handleStatusChange(t.id, e.target.value)}
-                style={s.select}
-              >
-                {TASK_STATUSES.map(st => (
-                  <option key={st} value={st}>{st}</option>
-                ))}
-              </select>
-              <button style={s.btnDelete} onClick={() => handleDelete(t.id, t.name)}>Eliminar</button>
+              {canEdit ? (
+                <>
+                  <select
+                    value={t.status}
+                    onChange={e => handleStatusChange(t.id, e.target.value)}
+                    style={s.select}
+                  >
+                    {TASK_STATUSES.map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                  <button style={s.btnDeleteCard} onClick={() => handleDelete(t.id, t.name)}>Eliminar</button>
+                </>
+              ) : (
+                <span style={statusStyle(t.status)}>{t.status}</span>
+              )}
             </div>
           </div>
         ))}
@@ -242,7 +255,7 @@ const s: Record<string, React.CSSProperties> = {
   filterSelect: { flex: 1, maxWidth: '360px', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px' },
   btnPrimary:   { padding: '9px 18px', border: 'none', borderRadius: '6px', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '14px' },
   btnSecondary: { padding: '9px 18px', border: '1px solid #d1d5db', borderRadius: '6px', background: '#fff', color: '#374151', fontWeight: 600, cursor: 'pointer', fontSize: '14px' },
-  btnDelete:    { padding: '6px 12px', border: '1px solid #fca5a5', borderRadius: '6px', background: '#fff', color: '#dc2626', cursor: 'pointer', fontSize: '13px', fontWeight: 600 },
+  btnDeleteCard:{ padding: '6px 12px', border: '1px solid #fca5a5', borderRadius: '6px', background: '#fff', color: '#dc2626', cursor: 'pointer', fontSize: '13px', fontWeight: 600 },
   alertError:   { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' },
   closeBtn:     { border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px', color: 'inherit' },
   loadingText:  { color: '#6b7280', textAlign: 'center', padding: '40px 0' },
@@ -254,7 +267,7 @@ const s: Record<string, React.CSSProperties> = {
   cardTitle:    { margin: '0 0 4px 0', fontSize: '15px', fontWeight: 700, color: '#111827' },
   cardDesc:     { margin: '0 0 6px 0', color: '#6b7280', fontSize: '13px' },
   cardMeta:     { margin: 0, fontSize: '12px', color: '#9ca3af' },
-  cardRight:    { display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 },
+  cardRight:    { display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, alignItems: 'flex-end' },
   areaTag:      { background: '#f3f4f6', color: '#374151', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 },
   select:       { padding: '7px 10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px', cursor: 'pointer' },
   overlay:      { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
