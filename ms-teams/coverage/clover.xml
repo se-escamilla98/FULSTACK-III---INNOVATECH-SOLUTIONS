@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1781920728142" clover="3.2.0">
+  <project timestamp="1781920728142" name="All files">
+    <metrics statements="24" coveredstatements="24" conditionals="20" coveredconditionals="20" methods="7" coveredmethods="7" elements="51" coveredelements="51" complexity="0" loc="24" ncloc="24" packages="2" files="2" classes="2"/>
+    <package name="factories">
+      <metrics statements="7" coveredstatements="7" conditionals="16" coveredconditionals="16" methods="1" coveredmethods="1"/>
+      <file name="team.factory.ts" path="C:\Users\sebas\OneDrive\Escritorio\FullStack 3\Innovatech-solutions\ms-teams\src\factories\team.factory.ts">
+        <metrics statements="7" coveredstatements="7" conditionals="16" coveredconditionals="16" methods="1" coveredmethods="1"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="6" count="8" type="cond" truecount="4" falsecount="0"/>
+        <line num="7" count="5" type="cond" truecount="4" falsecount="0"/>
+        <line num="8" count="4" type="cond" truecount="4" falsecount="0"/>
+        <line num="9" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="12" count="2" type="stmt"/>
+      </file>
+    </package>
+    <package name="services">
+      <metrics statements="17" coveredstatements="17" conditionals="4" coveredconditionals="4" methods="6" coveredmethods="6"/>
+      <file name="team.service.ts" path="C:\Users\sebas\OneDrive\Escritorio\FullStack 3\Innovatech-solutions\ms-teams\src\services\team.service.ts">
+        <metrics statements="17" coveredstatements="17" conditionals="4" coveredconditionals="4" methods="6" coveredmethods="6"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="1" type="stmt"/>
+        <line num="9" count="2" type="stmt"/>
+        <line num="10" count="1" type="stmt"/>
+        <line num="16" count="2" type="stmt"/>
+        <line num="20" count="2" type="stmt"/>
+        <line num="24" count="2" type="stmt"/>
+        <line num="25" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="27" count="1" type="stmt"/>
+        <line num="34" count="2" type="stmt"/>
+        <line num="35" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="37" count="1" type="stmt"/>
+        <line num="44" count="2" type="stmt"/>
+        <line num="45" count="2" type="stmt"/>
+        <line num="47" count="1" type="stmt"/>
+      </file>
+    </package>
+  </project>
+</coverage>

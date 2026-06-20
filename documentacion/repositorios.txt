@@ -1,0 +1,59 @@
+================================================================================
+INNOVATECH SOLUTIONS — ENLACES A REPOSITORIOS GITHUB
+Desarrollo FullStack III | DuocUC | 2026
+Equipo: Sebastian Escamilla (se-escamilla98) · Livan Sepulveda
+================================================================================
+
+REPOSITORIO PRINCIPAL (Monorepo)
+URL: https://github.com/se-escamilla98/FULSTACK-III---INNOVATECH-SOLUTIONS
+Descripcion: Repositorio principal del proyecto Innovatech Solutions.
+Contiene todos los componentes del sistema organizados en carpetas:
+  - bff-gateway/     → BFF con JWT, Circuit Breaker y Swagger
+  - ms-projects/     → Microservicio de proyectos con Prisma ORM
+  - ms-tasks/        → Microservicio de tareas con Prisma ORM
+  - ms-teams/        → Microservicio de equipos con Prisma ORM
+  - ms-monitor/      → Servicio de monitoreo con dashboard HTML
+  - frontend-web/    → Aplicacion React + Vite + TypeScript
+  - traefik/         → Configuracion del load balancer
+  - documentacion/   → Documentacion tecnica del proyecto
+  - docker-compose.yml  → Orquestacion para desarrollo
+  - docker-stack.yml    → Orquestacion para produccion (Swarm)
+
+ESTRUCTURA DEL REPOSITORIO:
+
+  /bff-gateway         → Backend For Frontend (Node.js + Express + Opossum)
+                         Puerto: 3000 | Autenticacion bcrypt + JWT + Circuit Breaker
+
+  /ms-projects         → Microservicio de Proyectos (Node.js + Express + Prisma)
+                         Puerto: 3002 | CRUD + regla de tareas pendientes
+
+  /ms-tasks            → Microservicio de Tareas (Node.js + Express + Prisma)
+                         Puerto: 3001 | CRUD + Factory con 5 validaciones
+
+  /ms-teams            → Microservicio de Equipos (Node.js + Express + Prisma)
+                         Puerto: 3003 | CRUD + estados ACTIVE/INACTIVE
+
+  /ms-monitor          → Servicio de Monitoreo (Node.js + Express)
+                         Puerto: 4000 | Health checks cada 15s + dashboard
+
+  /frontend-web        → Frontend (React + Vite + TypeScript)
+                         Puerto: 5173 | SPA con control de acceso por rol
+
+COMO CLONAR Y EJECUTAR:
+  git clone https://github.com/se-escamilla98/FULSTACK-III---INNOVATECH-SOLUTIONS.git
+  cd FULSTACK-III---INNOVATECH-SOLUTIONS
+  docker compose up --build
+
+ACCESO:
+  Frontend:          http://localhost:5173
+  API via Traefik:   http://localhost
+  Swagger:           http://localhost:3000/api-docs
+  Monitor:           http://localhost:4000
+  Traefik Dashboard: http://localhost:8080
+
+CREDENCIALES:
+  admin     / admin123   (rol: admin)
+  sebastian / duoc2026   (rol: developer)
+  lector    / lector123  (rol: reader)
+
+================================================================================

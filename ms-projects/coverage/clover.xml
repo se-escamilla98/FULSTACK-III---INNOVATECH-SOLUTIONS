@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1781920771959" clover="3.2.0">
+  <project timestamp="1781920771959" name="All files">
+    <metrics statements="35" coveredstatements="35" conditionals="26" coveredconditionals="25" methods="9" coveredmethods="9" elements="70" coveredelements="69" complexity="0" loc="35" ncloc="35" packages="2" files="2" classes="2"/>
+    <package name="factories">
+      <metrics statements="4" coveredstatements="4" conditionals="8" coveredconditionals="8" methods="1" coveredmethods="1"/>
+      <file name="project.factory.ts" path="C:\Users\sebas\OneDrive\Escritorio\FullStack 3\Innovatech-solutions\ms-projects\src\factories\project.factory.ts">
+        <metrics statements="4" coveredstatements="4" conditionals="8" coveredconditionals="8" methods="1" coveredmethods="1"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="6" count="9" type="cond" truecount="4" falsecount="0"/>
+        <line num="7" count="5" type="cond" truecount="4" falsecount="0"/>
+        <line num="9" count="2" type="stmt"/>
+      </file>
+    </package>
+    <package name="services">
+      <metrics statements="31" coveredstatements="31" conditionals="18" coveredconditionals="17" methods="8" coveredmethods="8"/>
+      <file name="project.service.ts" path="C:\Users\sebas\OneDrive\Escritorio\FullStack 3\Innovatech-solutions\ms-projects\src\services\project.service.ts">
+        <metrics statements="31" coveredstatements="31" conditionals="18" coveredconditionals="17" methods="8" coveredmethods="8"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="5" count="1" type="stmt"/>
+        <line num="7" count="1" type="stmt"/>
+        <line num="11" count="2" type="stmt"/>
+        <line num="12" count="1" type="stmt"/>
+        <line num="19" count="2" type="stmt"/>
+        <line num="24" count="2" type="stmt"/>
+        <line num="29" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="31" count="3" type="stmt"/>
+        <line num="32" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="33" count="2" type="stmt"/>
+        <line num="36" count="2" type="stmt"/>
+        <line num="44" count="3" type="stmt"/>
+        <line num="45" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="46" count="3" type="stmt"/>
+        <line num="51" count="2" type="stmt"/>
+        <line num="52" count="4" type="stmt"/>
+        <line num="55" count="1" type="stmt"/>
+        <line num="56" count="1" type="stmt"/>
+        <line num="62" count="4" type="cond" truecount="4" falsecount="0"/>
+        <line num="63" count="1" type="stmt"/>
+        <line num="65" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="66" count="1" type="stmt"/>
+        <line num="68" count="2" type="stmt"/>
+        <line num="69" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="70" count="1" type="stmt"/>
+        <line num="78" count="2" type="stmt"/>
+        <line num="79" count="2" type="stmt"/>
+        <line num="81" count="1" type="stmt"/>
+      </file>
+    </package>
+  </project>
+</coverage>
