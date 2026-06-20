@@ -1,0 +1,408 @@
+================================================================================
+      INNOVATECH SOLUTIONS — EXPLICACION DE PRUEBAS PARA EL VIDEO
+      Parcial 3 | Desarrollo FullStack III | DuocUC 2026
+================================================================================
+
+DISTRIBUCION:
+  Sebastian: BFF (middleware + E2E) + ms-projects
+  Livan:     BFF (integracion login) + ms-tasks + ms-teams
+
+TOTAL: 82 pruebas | 3 tipos: Unitarias, Integracion, End-to-End
+HERRAMIENTAS: Jest + ts-jest + Supertest
+IMPORTANTE: Todas las pruebas corren SIN Docker ni base de datos (usan mocks)
+
+================================================================================
+SEBASTIAN — PARTE 1: PRUEBAS UNITARIAS DEL MIDDLEWARE JWT (BFF)
+Archivo: bff-gateway/src/__tests__/unit/auth.middleware.test.ts
+Comando: cd bff-gateway && npm test
+================================================================================
+
+[INTRODUCCION]
+"Vamos a comenzar con las pruebas del BFF Gateway. La primera suite
+testea el middleware de autenticacion JWT de forma aislada, sin levantar
+Express ni conectar a ninguna base de datos. Simulamos los objetos
+request, response y next manualmente para verificar que el middleware
+se comporta correctamente en cada escenario."
+
+[OBJETIVO]
+Validar que el middleware verifyToken protege correctamente las rutas,
+aceptando tokens validos y rechazando los invalidos, sin depender
+de ningun otro componente del sistema.
+
+[TEST 1] debe permitir acceso con token valido (Bearer)
+  Que hace: Genera un JWT real con el secreto del sistema, lo envia
+  en el header como "Bearer <token>" y verifica que el middleware
+  llame a next() y agregue la informacion del usuario al request.
+  Por que importa: Es el caso feliz — confirma que un usuario
+  autenticado puede acceder a las rutas protegidas.
+
+[TEST 2] debe permitir acceso con token sin prefijo Bearer
+  Que hace: Envia el token directamente sin el prefijo "Bearer".
+  Verifica que el middleware lo acepta igual.
+  Por que importa: Algunos clientes HTTP no agregan el prefijo.
+  El middleware debe ser tolerante para no rechazar tokens validos.
+
+[TEST 3] debe retornar 401 si no se envia token
+  Que hace: Envia un request sin el header Authorization.
+  Verifica que retorna status 401 con el mensaje "Token requerido".
+  Por que importa: Sin token no hay forma de saber quien es el
+  usuario. El 401 indica "no estas autenticado".
+
+[TEST 4] debe retornar 403 si el token es invalido
+  Que hace: Envia un string cualquiera como token ("token-falso-12345").
+  Verifica que retorna status 403 con "Token invalido".
+  Por que importa: Un token fabricado o corrupto debe ser rechazado.
+  El 403 indica "tu token no es valido".
+
+[TEST 5] debe retornar 403 si el token esta expirado
+  Que hace: Genera un JWT con expiracion de 0 segundos (ya expirado)
+  y verifica que el middleware lo rechaza con 403.
+  Por que importa: Los tokens tienen vida util. Un token expirado
+  podria pertenecer a una sesion antigua o robada.
+
+[TEST 6] debe ser tolerante a "bearer" en minusculas
+  Que hace: Envia el header como "bearer <token>" en vez de "Bearer".
+  Verifica que el middleware lo acepta normalmente.
+  Por que importa: El estandar HTTP dice que los headers no son
+  case-sensitive. Nuestro middleware respeta eso.
+
+
+================================================================================
+LIVAN — PARTE 2: PRUEBAS DE INTEGRACION DEL LOGIN (BFF)
+Archivo: bff-gateway/src/__tests__/integration/auth.routes.test.ts
+Comando: cd bff-gateway && npm test
+================================================================================
+
+[INTRODUCCION]
+"Ahora pasamos a las pruebas de integracion. A diferencia de las
+unitarias que testean funciones aisladas, estas pruebas levantan un
+servidor Express real con Supertest y prueban el endpoint POST
+/auth/login completo, incluyendo la verificacion de password con
+bcrypt y la generacion del JWT."
+
+[OBJETIVO]
+Validar el flujo completo de autenticacion: que los usuarios validos
+reciban un JWT correcto, que los invalidos sean rechazados, y que
+los campos obligatorios se validen antes de intentar autenticar.
+
+[TEST 1] debe autenticar con credenciales validas y retornar JWT
+  Que hace: Envia POST /auth/login con usuario "admin" y password
+  "admin123". Verifica que retorna status 200 con un token JWT valido,
+  el username, displayName, rol "admin" y expiresIn "24h".
+  Ademas decodifica el token y verifica que el payload sea correcto.
+  Por que importa: Es el flujo principal del sistema. Si el login
+  falla, nadie puede usar la aplicacion.
+
+[TEST 2] debe autenticar al usuario sebastian
+  Que hace: Login con "sebastian" / "duoc2026".
+  Verifica que retorna token, displayName "Sebastian" y rol "developer".
+  Por que importa: Confirma que el segundo usuario funciona y tiene
+  el rol correcto para el control de acceso del frontend.
+
+[TEST 3] debe autenticar al usuario lector con rol reader
+  Que hace: Login con "lector" / "lector123".
+  Verifica que el rol retornado es "reader".
+  Por que importa: El usuario lector tiene acceso de solo lectura.
+  Si el rol estuviera mal, veria botones que no deberia ver.
+
+[TEST 4] debe rechazar password incorrecto con 401
+  Que hace: Envia login con usuario "admin" pero password "wrongpassword".
+  Verifica que retorna 401 con mensaje "Credenciales invalidas".
+  Por que importa: Bcrypt debe comparar correctamente el hash.
+  Un password incorrecto nunca debe generar un token.
+
+[TEST 5] debe rechazar usuario inexistente con 401
+  Que hace: Envia login con usuario "hacker" que no existe en el sistema.
+  Verifica que retorna 401 sin revelar si el usuario existe o no.
+  Por que importa: Por seguridad, el mensaje de error es el mismo
+  para usuario inexistente y password incorrecto. Asi un atacante
+  no puede enumerar usuarios validos.
+
+[TEST 6] debe retornar 400 si falta username
+  Que hace: Envia login solo con password, sin username.
+  Verifica que retorna 400 con "campos requeridos".
+  Por que importa: La validacion de entrada debe ocurrir antes
+  de intentar buscar el usuario en la base de datos.
+
+[TEST 7] debe retornar 400 si falta password
+  Que hace: Envia login solo con username, sin password.
+  Verifica que retorna 400.
+  Por que importa: Mismo principio — validar primero, procesar despues.
+
+[TEST 8] debe ser case-insensitive con el username
+  Que hace: Envia login con "ADMIN" en mayusculas.
+  Verifica que se autentica correctamente.
+  Por que importa: El usuario no deberia fallar por escribir
+  su nombre en mayusculas accidentalmente.
+
+
+================================================================================
+SEBASTIAN — PARTE 3: PRUEBA END-TO-END DEL FLUJO DE NEGOCIO (BFF)
+Archivo: bff-gateway/src/__tests__/e2e/flow.test.ts
+Comando: cd bff-gateway && npm test
+================================================================================
+
+[INTRODUCCION]
+"Esta es la prueba mas importante del proyecto. Es un test
+end-to-end que simula el flujo completo de negocio paso a paso,
+desde el login hasta completar un proyecto. Mockeamos axios para
+simular las respuestas de los microservicios, pero todo lo demas
+es real: Express, el middleware JWT, el Circuit Breaker con Opossum,
+y las rutas del BFF."
+
+[OBJETIVO]
+Demostrar que el flujo critico del negocio funciona de extremo a
+extremo: autenticacion, CRUD a traves del BFF, la regla de negocio
+de tareas pendientes, y la resiliencia del Circuit Breaker.
+
+[TEST 1] Paso 1: Login y obtener JWT
+  Que hace: POST /auth/login con admin/admin123.
+  Guarda el token para usarlo en los pasos siguientes.
+  Objetivo: Iniciar la sesion como lo haria un usuario real.
+
+[TEST 2] Paso 2: Ruta protegida rechaza acceso sin token
+  Que hace: GET /api/projects sin enviar token.
+  Verifica que retorna 401.
+  Objetivo: Confirmar que las rutas protegidas son inaccesibles
+  sin autenticacion.
+
+[TEST 3] Paso 3: Crear proyecto via BFF
+  Que hace: POST /api/projects con el token JWT.
+  Mock de axios simula que ms-projects crea el proyecto exitosamente.
+  Verifica que retorna 201 con el proyecto en estado PLANNED.
+  Objetivo: Validar que el BFF reenvía correctamente la peticion
+  al microservicio propagando el JWT.
+
+[TEST 4] Paso 4: Crear tarea asociada al proyecto
+  Que hace: POST /api/tasks con nombre, area, assignedTo, teamId y
+  el projectId del proyecto creado en el paso anterior.
+  Verifica que retorna 201 con la tarea en estado PENDING.
+  Objetivo: Crear una tarea pendiente que bloquee la finalizacion
+  del proyecto.
+
+[TEST 5] Paso 5: Completar proyecto FALLA porque hay tarea pendiente
+  Que hace: PATCH /api/projects/:id/status con status COMPLETED.
+  Mock de axios simula que ms-tasks retorna una tarea con estado PENDING.
+  Verifica que retorna 500 con mensaje "tareas pendientes".
+  Objetivo: Esta es la REGLA DE NEGOCIO CRITICA del sistema.
+  No se puede completar un proyecto si tiene tareas sin terminar.
+  El BFF consulta a ms-tasks antes de permitir el cambio de estado.
+
+[TEST 6] Paso 6: Completar la tarea primero
+  Que hace: PATCH /api/tasks/:id con status COMPLETED.
+  Mock simula que ms-tasks actualiza la tarea exitosamente.
+  Verifica que retorna 200 con estado COMPLETED.
+  Objetivo: Resolver el bloqueo completando la tarea pendiente.
+
+[TEST 7] Paso 7: Ahora completar proyecto EXITOSO
+  Que hace: PATCH /api/projects/:id/status con status COMPLETED.
+  Mock simula que ms-tasks ahora retorna todas las tareas COMPLETED.
+  Segundo mock simula que ms-projects actualiza el estado.
+  Verifica que retorna 200 con estado COMPLETED.
+  Objetivo: Demostrar que una vez resueltas las dependencias,
+  el proyecto se puede completar correctamente.
+
+[TEST 8] Paso 8: Circuit Breaker retorna fallback si MS cae
+  Que hace: GET /api/projects con el token, pero mock de axios
+  simula que ms-projects no responde (ECONNREFUSED).
+  Verifica que retorna 200 con un array vacio en vez de un error 500.
+  Objetivo: Demostrar la resiliencia del sistema. El Circuit Breaker
+  detecta que el microservicio cayo y retorna un fallback inmediato
+  en vez de bloquear al usuario con un timeout.
+
+
+================================================================================
+SEBASTIAN — PARTE 4: PRUEBAS DE MS-PROJECTS (23 tests)
+Archivo: ms-projects/src/__tests__/unit/project.factory.test.ts
+Archivo: ms-projects/src/__tests__/unit/project.service.test.ts
+Comando: cd ms-projects && npm test
+================================================================================
+
+[INTRODUCCION]
+"Ahora las pruebas unitarias de ms-projects. Testeamos dos capas:
+el Factory que valida la creacion de proyectos, y el Service que
+contiene la logica de negocio con Prisma mockeado."
+
+--- FACTORY (7 tests) ---
+
+[OBJETIVO]
+Verificar que ProjectFactory valida correctamente los campos
+obligatorios y asigna el estado inicial PLANNED.
+
+[TEST 1] debe crear un proyecto con estado PLANNED por defecto
+  Verifica que al pasar nombre y descripcion validos, el factory
+  retorna un objeto con status "PLANNED" sin que nadie lo especifique.
+
+[TESTS 2-7] validaciones de campos
+  Verifican que el factory lanza error con mensaje descriptivo cuando:
+  - El nombre esta vacio, es solo espacios, o es null/undefined
+  - La descripcion esta vacia, es solo espacios, o es null/undefined
+  Esto garantiza que nunca se cree un proyecto sin datos obligatorios.
+
+--- SERVICE (16 tests) ---
+
+[OBJETIVO]
+Verificar toda la logica de negocio del servicio de proyectos,
+incluyendo CRUD completo y la regla de tareas pendientes.
+
+[TESTS createProject] (2)
+  Verifica que crear un proyecto llama a Prisma correctamente y que
+  si el Factory rechaza los datos, Prisma nunca es llamado.
+
+[TESTS getAllProjects] (2)
+  Verifica que retorna la lista de proyectos y un array vacio
+  cuando no hay registros (no un error 404).
+
+[TESTS getProjectById] (2)
+  Verifica que retorna el proyecto si existe y null si no existe.
+
+[TESTS updateProject] (4)
+  Verifica actualizacion exitosa, rechazo de nombre vacio, rechazo
+  de descripcion vacia, y error cuando el proyecto no existe.
+
+[TESTS updateStatus] (4) — LOS MAS IMPORTANTES
+  Test 1: Cambiar a IN_PROGRESS no consulta tareas (es solo para COMPLETED).
+  Test 2: COMPLETED se permite cuando todas las tareas estan completas.
+  Test 3: COMPLETED se RECHAZA cuando hay tareas pendientes.
+  Test 4: COMPLETED se RECHAZA si ms-tasks no esta disponible
+         (principio de seguridad: ante la duda, bloqueamos).
+
+[TESTS deleteProject] (2)
+  Verifica eliminacion exitosa y error si el proyecto no existe.
+
+
+================================================================================
+LIVAN — PARTE 5: PRUEBAS DE MS-TASKS (18 tests)
+Archivo: ms-tasks/src/__tests__/unit/task.factory.test.ts
+Archivo: ms-tasks/src/__tests__/unit/task.service.test.ts
+Comando: cd ms-tasks && npm test
+================================================================================
+
+[INTRODUCCION]
+"Las pruebas de ms-tasks siguen el mismo patron. El TaskFactory es
+el mas estricto del sistema con 5 campos obligatorios, y el
+TaskService cubre el CRUD completo."
+
+--- FACTORY (7 tests) ---
+
+[OBJETIVO]
+Verificar que TaskFactory valida los 5 campos obligatorios y asigna
+el estado PENDING por defecto.
+
+[TEST 1] debe crear una tarea con estado PENDING por defecto
+  Verifica que al pasar los 5 campos obligatorios (name, projectId,
+  area, assignedTo, teamId), el factory retorna un objeto con
+  status "PENDING" automaticamente.
+
+[TESTS 2-6] validaciones de campos obligatorios
+  Cada test verifica que el factory lanza error cuando falta:
+  - name: "El nombre de la tarea es obligatorio"
+  - projectId: "Toda tarea debe estar asociada a un Proyecto"
+  - area: "El area es obligatoria"
+  - assignedTo: "El encargado es obligatorio"
+  - teamId: "El equipo es obligatorio"
+
+[TEST 7] debe aceptar description vacia (campo opcional)
+  Verifica que description es el unico campo que se puede omitir.
+  El factory asigna string vacio como valor por defecto.
+
+--- SERVICE (11 tests) ---
+
+[OBJETIVO]
+Verificar el CRUD completo del servicio de tareas con Prisma mockeado.
+
+[TESTS createTask] (3)
+  Verifica creacion exitosa, rechazo por nombre vacio y rechazo
+  por projectId faltante. En ambos rechazos, Prisma nunca es
+  llamado porque el Factory bloquea antes.
+
+[TESTS getTasksByProject] (2)
+  Verifica que filtra correctamente por projectId y retorna array
+  vacio cuando no hay tareas para ese proyecto.
+
+[TESTS getTaskById] (2)
+  Retorna la tarea si existe, null si no existe.
+
+[TESTS updateTask] (2)
+  Verifica actualizacion exitosa y error con tarea inexistente.
+
+[TESTS deleteTask] (2)
+  Verifica eliminacion exitosa y error con tarea inexistente.
+
+
+================================================================================
+LIVAN — PARTE 6: PRUEBAS DE MS-TEAMS (18 tests)
+Archivo: ms-teams/src/__tests__/unit/team.factory.test.ts
+Archivo: ms-teams/src/__tests__/unit/team.service.test.ts
+Comando: cd ms-teams && npm test
+================================================================================
+
+[INTRODUCCION]
+"Finalmente las pruebas de ms-teams. Siguen el mismo arquetipo que
+los otros microservicios, validando el Factory y el Service."
+
+--- FACTORY (6 tests) ---
+
+[OBJETIVO]
+Verificar que TeamFactory valida los 4 campos obligatorios y asigna
+el estado ACTIVE por defecto.
+
+[TEST 1] debe crear un equipo con estado ACTIVE por defecto
+  Verifica que al pasar name, description, area y leaderId,
+  el factory retorna un objeto con status "ACTIVE".
+
+[TESTS 2-6] validaciones
+  Verifican que el factory rechaza: nombre vacio, descripcion vacia,
+  area vacia, leaderId vacio, y nombre de solo espacios.
+
+--- SERVICE (12 tests) ---
+
+[OBJETIVO]
+Verificar CRUD completo incluyendo las dos operaciones de
+actualizacion separadas: updateTeam (datos) y updateStatus (estado).
+
+[TESTS createTeam] (2)
+  Creacion exitosa y rechazo por Factory.
+
+[TESTS getAll] (2)
+  Lista completa y array vacio (no 404).
+
+[TESTS getTeamById] (2)
+  Retorna equipo o null.
+
+[TESTS updateStatus] (2)
+  Cambio de ACTIVE a INACTIVE exitoso, y error si el equipo no existe.
+
+[TESTS updateTeam] (2)
+  Actualizacion de datos exitosa, y error si el equipo no existe.
+
+[TESTS deleteTeam] (2)
+  Eliminacion exitosa y error si el equipo no existe.
+
+
+================================================================================
+CIERRE PARA EL VIDEO (Sebastian o Livan)
+================================================================================
+
+"En resumen, tenemos 82 pruebas automatizadas distribuidas en los
+4 servicios del sistema:
+
+  - 65 pruebas unitarias que validan las Factories y los Services
+    de cada microservicio con Prisma completamente mockeado
+  - 8 pruebas de integracion que validan el flujo de login real
+    con bcrypt y generacion de JWT usando Supertest
+  - 8 pruebas end-to-end que simulan el flujo completo de negocio
+    desde el login hasta completar un proyecto, incluyendo la regla
+    critica de tareas pendientes y el fallback del Circuit Breaker
+
+Todas corren sin Docker, sin base de datos, en menos de 5 segundos.
+Los mocks de Prisma permiten testear la logica de negocio de forma
+aislada, y los mocks de axios permiten simular la comunicacion
+entre servicios sin necesidad de que esten corriendo.
+
+La estrategia de testing refleja la arquitectura: cada microservicio
+se testea de forma independiente, igual que funciona en produccion."
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================
