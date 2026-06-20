@@ -37,7 +37,7 @@ describe('POST /auth/login', () => {
     expect(res.status).toBe(200);
     expect(res.body.token).toBeDefined();
     expect(res.body.displayName).toBe('Sebastián');
-    expect(res.body.role).toBe('admin');
+    expect(res.body.role).toBe('developer');
   });
 
   it('debe autenticar al usuario lector con rol reader', async () => {

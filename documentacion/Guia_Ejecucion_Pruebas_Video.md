@@ -267,3 +267,13 @@ Tests:       18 passed, 18 total
 3. **Pausar**: Después de cada resultado, pausar 3-4 segundos para que el espectador lea
 4. **No correr**: Mejor mostrar 2 servicios bien explicados que los 4 corriendo sin explicación
 5. **Si falla algo**: Tener el video pregrabado como respaldo. Los tests deben estar todos en verde ANTES de grabar
+
+
+
+
+
+
+Ese mensaje que se ve en la consola es el log interno del ProjectService cuando detecta que ms-tasks no está disponible. Aparece porque estamos testeando exactamente ese escenario: ¿qué pasa si alguien intenta completar un proyecto pero el microservicio de tareas está caído?
+Nuestro servicio tiene un principio de seguridad conservador: si no puede verificar si hay tareas pendientes porque ms-tasks no responde, bloquea la operación. Prefiere decir 'no puedo completar esto' a dejar pasar un proyecto con tareas sin terminar.
+El console.error es el log que el servicio escribe cuando detecta esa situación. En producción ese log serviría para que el equipo de operaciones sepa que ms-tasks tuvo un problema. En el test, simplemente confirma que el código pasó por esa rama del catch.
+El test en sí pasa en verde porque verifica que efectivamente se lanzó el error 'tareas pendientes' — que es exactamente lo que queremos que pase cuando ms-tasks no está disponible
