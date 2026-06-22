@@ -5,6 +5,37 @@ const teamService = new TeamService();
 
 export class TeamController {
 
+  // ==================== EMPLOYEES ====================
+
+  async createEmployee(req: Request, res: Response) {
+    try {
+      const employee = await teamService.createEmployee(req.body);
+      res.status(201).json(employee);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  async getAllEmployees(req: Request, res: Response) {
+    try {
+      const employees = await teamService.getAllEmployees();
+      res.json(employees);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async deleteEmployee(req: Request, res: Response) {
+    try {
+      await teamService.deleteEmployee(req.params.id);
+      res.json({ message: 'Empleado eliminado correctamente' });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  // ==================== TEAMS ====================
+
   async create(req: Request, res: Response) {
     try {
       const team = await teamService.createTeam(req.body);

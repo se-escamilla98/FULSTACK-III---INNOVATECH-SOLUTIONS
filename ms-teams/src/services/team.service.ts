@@ -5,12 +5,35 @@ const prisma = new PrismaClient();
 
 export class TeamService {
 
+  // ==================== EMPLOYEES ====================
+
+  async createEmployee(data: { name: string; rut: string; position: string }) {
+    if (!data.name?.trim()) throw new Error('El nombre del empleado es obligatorio');
+    if (!data.rut?.trim()) throw new Error('El RUT del empleado es obligatorio');
+    if (!data.position?.trim()) throw new Error('El cargo del empleado es obligatorio');
+    return await prisma.employee.create({ data });
+  }
+
+  async getAllEmployees() {
+    return await prisma.employee.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  async deleteEmployee(id: string) {
+    try {
+      return await prisma.employee.delete({ where: { id } });
+    } catch {
+      throw new Error(`No se pudo eliminar el empleado con ID ${id}`);
+    }
+  }
+
+  // ==================== TEAMS ====================
+
   async createTeam(data: {
     name: string;
     description: string;
     area: string;
     leaderId: string;
-    members?: { name: string; role: string }[];
+    members?: { employeeId: string; name: string; role: string }[];
   }): Promise<Team> {
     const teamData = TeamFactory.create(data.name, data.description, data.area, data.leaderId);
     return await prisma.team.create({
@@ -57,7 +80,7 @@ export class TeamService {
     });
   }
 
-  async addMember(teamId: string, member: { name: string; role: string }) {
+  async addMember(teamId: string, member: { employeeId: string; name: string; role: string }) {
     const team = await prisma.team.findUnique({ where: { id: teamId } });
     if (!team) throw new Error(`Equipo con ID ${teamId} no encontrado`);
     return await prisma.member.create({

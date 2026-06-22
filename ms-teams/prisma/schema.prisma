@@ -12,12 +12,20 @@ enum TeamStatus {
   INACTIVE
 }
 
+model Employee {
+  id        String   @id @default(uuid())
+  name      String
+  rut       String   @unique
+  position  String
+  createdAt DateTime @default(now())
+}
+
 model Team {
   id          String     @id @default(uuid())
   name        String
   description String
   status      TeamStatus @default(ACTIVE)
-  leaderId    String     @default(uuid())
+  leaderId    String
   area        String
   members     Member[]
   createdAt   DateTime   @default(now())
@@ -25,10 +33,11 @@ model Team {
 }
 
 model Member {
-  id        String   @id @default(uuid())
-  name      String
-  role      String
-  teamId    String
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  employeeId String
+  name       String
+  role       String
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
 }
