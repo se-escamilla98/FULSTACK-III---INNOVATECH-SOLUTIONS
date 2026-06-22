@@ -27,6 +27,8 @@ app.get('/teams/:id',           (req, res) => teamController.getTeamById(req, re
 app.patch('/teams/:id',         (req, res) => teamController.updateTeam(req, res));
 app.patch('/teams/:id/status',  (req, res) => teamController.updateStatus(req, res));
 app.delete('/teams/:id',        (req, res) => teamController.deleteTeam(req, res));
+app.post('/teams/:id/members', verifyToken, (req, res) => teamController.addMember(req, res));
+app.delete('/teams/:id/members/:memberId', verifyToken, (req, res) => teamController.removeMember(req, res));
 
 app.listen(port, () => {
   console.log(`🚀 MS-TEAMS corriendo en http://localhost:${port}`);

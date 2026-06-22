@@ -6,7 +6,7 @@ COPY package*.json ./
 RUN npm install --include=dev
 
 COPY . .
-RUN npm run build
+RUN rm -rf dist && npm run build
 
 EXPOSE 3000
 
