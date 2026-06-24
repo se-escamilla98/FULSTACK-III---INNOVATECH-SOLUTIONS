@@ -1,43 +1,71 @@
 import React, { useEffect, useState } from 'react';
 import bffClient from '../api/bffClient';
 
-interface Employee { id: string; name: string; rut: string; position: string; }
-interface Member   { id: string; employeeId: string; name: string; role: string; }
-interface Team     { id: string; name: string; description: string; area: string; leaderId: string; members: Member[]; status: string; }
+// ─── Interfaces ───────────────────────────────────────────────────────────────
+interface Employee {
+  id: string;
+  rut: string;
+  firstName: string;
+  secondName?: string;
+  lastName: string;
+  motherLastName?: string;
+  position: string;
+  hireDate: string;
+}
+interface Member { id: string; employeeId: string; name: string; role: string; }
+interface Team   { id: string; name: string; description: string; area: string; leaderId: string; members: Member[]; status: string; }
 
 const TEAM_ROLES = ['Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'Tech Lead', 'QA Engineer', 'DevOps Engineer', 'UI/UX Designer', 'Scrum Master'];
+const POSITIONS  = ['Desarrollador', 'Diseñador', 'QA Tester', 'DevOps', 'Scrum Master', 'Product Owner', 'Analista', 'Gerente', 'Tech Lead'];
+
+const formatRut = (value: string): string => {
+  const clean = value.replace(/[^0-9kK]/g, '');
+  if (clean.length < 2) return clean;
+  const dv  = clean.slice(-1);
+  const num = clean.slice(0, -1).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${num}-${dv}`;
+};
+
+const empFullName = (e: Employee) =>
+  [e.firstName, e.secondName, e.lastName, e.motherLastName].filter(Boolean).join(' ');
 
 const statusStyle = (st: string): React.CSSProperties => {
   const m: Record<string, React.CSSProperties> = {
-    ACTIVE: { background: '#dcfce7', color: '#15803d' },
+    ACTIVE:   { background: '#dcfce7', color: '#15803d' },
     INACTIVE: { background: '#e2e8f0', color: '#475569' },
   };
   return { ...m[st] || m.ACTIVE, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 700 };
 };
 
+// ─── Componente ───────────────────────────────────────────────────────────────
 export default function TeamsView({ role }: { role: string }) {
   const isAdmin = role === 'admin';
 
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees]       = useState<Employee[]>([]);
   const [showEmpPanel, setShowEmpPanel] = useState(false);
-  const [empForm, setEmpForm] = useState({ name: '', rut: '', position: '' });
-  const [empSaving, setEmpSaving] = useState(false);
+  const [empSaving, setEmpSaving]       = useState(false);
+  const [empForm, setEmpForm] = useState({
+    firstName: '', secondName: '', lastName: '', motherLastName: '',
+    rut: '', position: '', hireDate: '',
+  });
 
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [teams, setTeams]     = useState<Team[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const [showModal, setShowModal] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', area: '', leaderId: '' });
+  const [saving, setSaving]       = useState(false);
+  const [form, setForm]           = useState({ name: '', description: '', area: '', leaderId: '' });
   const [initMembers, setInitMembers] = useState<{ employeeId: string; name: string; role: string }[]>([]);
-  const [selEmpId, setSelEmpId] = useState('');
-  const [selRole, setSelRole] = useState('');
+  const [selEmpId, setSelEmpId]   = useState('');
+  const [selRole, setSelRole]     = useState('');
 
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [addEmpId, setAddEmpId] = useState('');
-  const [addRole, setAddRole] = useState('');
+  const [addRole, setAddRole]   = useState('');
 
+  // ── Carga ──────────────────────────────────────────────────────────────────
   const loadEmployees = async () => {
     try {
       const res = await bffClient.get('/employees');
@@ -55,36 +83,53 @@ export default function TeamsView({ role }: { role: string }) {
   };
 
   useEffect(() => { loadEmployees(); loadTeams(); }, []);
+  useEffect(() => { if (showModal)    loadEmployees(); }, [showModal]);
+  useEffect(() => { if (addingTo !== null) loadEmployees(); }, [addingTo]);
+  useEffect(() => {
+    if (success) { const t = setTimeout(() => setSuccess(null), 3000); return () => clearTimeout(t); }
+  }, [success]);
 
-  // ==================== EMPLEADOS ====================
-
+  // ── Empleados ──────────────────────────────────────────────────────────────
   const handleCreateEmployee = async () => {
-    if (!empForm.name.trim() || !empForm.rut.trim() || !empForm.position) return;
+    if (!empForm.firstName.trim() || !empForm.lastName.trim() || !empForm.rut.trim() || !empForm.position || !empForm.hireDate) {
+      setError('Nombre, apellido, RUT, cargo y fecha de contratación son obligatorios.'); return;
+    }
     setEmpSaving(true);
     try {
-      await bffClient.post('/employees', empForm);
-      setEmpForm({ name: '', rut: '', position: '' });
+      await bffClient.post('/employees', {
+        firstName:      empForm.firstName.trim(),
+        secondName:     empForm.secondName.trim() || undefined,
+        lastName:       empForm.lastName.trim(),
+        motherLastName: empForm.motherLastName.trim() || undefined,
+        rut:            empForm.rut,
+        position:       empForm.position,
+        hireDate:       empForm.hireDate,
+      });
+      setEmpForm({ firstName: '', secondName: '', lastName: '', motherLastName: '', rut: '', position: '', hireDate: '' });
+      setSuccess('Empleado creado correctamente.');
       await loadEmployees();
     } catch (err: any) { setError(err.response?.data?.error || 'Error al crear empleado'); }
     finally { setEmpSaving(false); }
   };
 
   const handleDeleteEmployee = async (id: string, name: string) => {
-    if (!window.confirm(`¿Eliminar al empleado "${name}"?`)) return;
+    if (!window.confirm(`¿Eliminar a "${name}"?`)) return;
     try { await bffClient.delete(`/employees/${id}`); await loadEmployees(); }
     catch { setError('No se pudo eliminar el empleado.'); }
   };
 
-  // ==================== EQUIPOS ====================
-
+  // ── Equipos ────────────────────────────────────────────────────────────────
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      await bffClient.post('/teams', { ...form, members: initMembers });
+      const res = await bffClient.post('/teams', { ...form, members: initMembers });
+      // Usar la respuesta directa del POST para mostrar los miembros inmediatamente
+      const newTeam = res.data;
+      setTeams(prev => [newTeam, ...prev]);
       setShowModal(false);
       setForm({ name: '', description: '', area: '', leaderId: '' });
       setInitMembers([]);
-      await loadTeams();
+      setSuccess('Equipo creado correctamente.');
     } catch (err: any) { setError(err.response?.data?.error || 'Error al crear equipo'); }
     finally { setSaving(false); }
   };
@@ -94,7 +139,7 @@ export default function TeamsView({ role }: { role: string }) {
     const emp = employees.find(e => e.id === selEmpId);
     if (!emp) return;
     if (initMembers.some(m => m.employeeId === selEmpId)) { setError('Este empleado ya fue agregado.'); return; }
-    setInitMembers([...initMembers, { employeeId: emp.id, name: emp.name, role: selRole }]);
+    setInitMembers([...initMembers, { employeeId: emp.id, name: empFullName(emp), role: selRole }]);
     setSelEmpId(''); setSelRole('');
   };
 
@@ -103,7 +148,7 @@ export default function TeamsView({ role }: { role: string }) {
     const emp = employees.find(e => e.id === addEmpId);
     if (!emp) return;
     try {
-      await bffClient.post(`/teams/${teamId}/members`, { employeeId: emp.id, name: emp.name, role: addRole });
+      await bffClient.post(`/teams/${teamId}/members`, { employeeId: emp.id, name: empFullName(emp), role: addRole });
       setAddingTo(null); setAddEmpId(''); setAddRole('');
       await loadTeams();
     } catch (err: any) { setError(err.response?.data?.error || 'Error al agregar miembro'); }
@@ -131,11 +176,12 @@ export default function TeamsView({ role }: { role: string }) {
 
   const getLeaderName = (leaderId: string) => {
     const emp = employees.find(e => e.id === leaderId);
-    return emp ? emp.name : leaderId;
+    return emp ? empFullName(emp) : leaderId;
   };
 
   const availableFor = (usedIds: string[]) => employees.filter(e => !usedIds.includes(e.id));
 
+  // ─── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div>
       <div style={s.toolbar}>
@@ -143,34 +189,42 @@ export default function TeamsView({ role }: { role: string }) {
         <div style={{ display: 'flex', gap: '10px' }}>
           {isAdmin && (
             <button style={s.btnSecondary} onClick={() => setShowEmpPanel(!showEmpPanel)}>
-              {showEmpPanel ? 'Ocultar Empleados' : 'Gestionar Empleados'}
+              {showEmpPanel ? 'Ocultar Empleados' : '👥 Gestionar Empleados'}
             </button>
           )}
           {isAdmin && (
-            <button style={s.btnPrimary} onClick={() => { loadEmployees(); setShowModal(true); }}>+ Nuevo Equipo</button>
+            <button style={s.btnPrimary} onClick={() => setShowModal(true)}>+ Nuevo Equipo</button>
           )}
         </div>
       </div>
 
-      {error && <div style={s.alertError}>{error} <button style={s.closeBtn} onClick={() => setError(null)}>✕</button></div>}
+      {error   && <div style={s.alertError}>{error}<button style={s.closeBtn} onClick={() => setError(null)}>✕</button></div>}
+      {success && <div style={s.alertSuccess}>{success}</div>}
 
-      {/* ==================== PANEL EMPLEADOS ==================== */}
+      {/* ══ PANEL EMPLEADOS ══ */}
       {showEmpPanel && isAdmin && (
         <div style={s.empPanel}>
-          <h3 style={s.empTitle}>Empleados de la Organización ({employees.length})</h3>
-          <div style={s.empForm}>
-            <input style={s.empInput} placeholder="Nombre completo"
-              value={empForm.name} onChange={e => setEmpForm(f => ({ ...f, name: e.target.value }))} />
-            <input style={s.empInput} placeholder="RUT (ej: 12.345.678-9)"
-              value={empForm.rut} onChange={e => setEmpForm(f => ({ ...f, rut: e.target.value }))} />
+          <h3 style={s.empTitle}>👥 Empleados ({employees.length})</h3>
+          <div style={s.empFormGrid}>
+            <input style={s.empInput} placeholder="Primer nombre *"
+              value={empForm.firstName} onChange={e => setEmpForm(f => ({ ...f, firstName: e.target.value }))} />
+            <input style={s.empInput} placeholder="Segundo nombre"
+              value={empForm.secondName} onChange={e => setEmpForm(f => ({ ...f, secondName: e.target.value }))} />
+            <input style={s.empInput} placeholder="Apellido paterno *"
+              value={empForm.lastName} onChange={e => setEmpForm(f => ({ ...f, lastName: e.target.value }))} />
+            <input style={s.empInput} placeholder="Apellido materno"
+              value={empForm.motherLastName} onChange={e => setEmpForm(f => ({ ...f, motherLastName: e.target.value }))} />
+            <input style={s.empInput} placeholder="RUT (ej: 12.345.678-9) *"
+              value={empForm.rut} onChange={e => setEmpForm(f => ({ ...f, rut: formatRut(e.target.value) }))} maxLength={12} />
             <select style={s.empInput} value={empForm.position}
               onChange={e => setEmpForm(f => ({ ...f, position: e.target.value }))}>
-              <option value="">Cargo...</option>
-              {['Desarrollador', 'Diseñador', 'QA Tester', 'DevOps', 'Scrum Master', 'Product Owner', 'Analista', 'Gerente'].map(p =>
-                <option key={p} value={p}>{p}</option>)}
+              <option value="">Cargo *</option>
+              {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
-            <button style={s.btnPrimary} type="button" onClick={handleCreateEmployee}
-              disabled={empSaving || !empForm.name.trim() || !empForm.rut.trim() || !empForm.position}>
+            <input style={s.empInput} type="date"
+              value={empForm.hireDate} onChange={e => setEmpForm(f => ({ ...f, hireDate: e.target.value }))} />
+            <button style={s.btnPrimary} onClick={handleCreateEmployee}
+              disabled={empSaving || !empForm.firstName.trim() || !empForm.lastName.trim() || !empForm.rut.trim() || !empForm.position || !empForm.hireDate}>
               {empSaving ? 'Guardando...' : '+ Agregar'}
             </button>
           </div>
@@ -179,43 +233,47 @@ export default function TeamsView({ role }: { role: string }) {
               {employees.map(emp => (
                 <div key={emp.id} style={s.empRow}>
                   <div>
-                    <span style={s.empName}>{emp.name}</span>
-                    <span style={s.empDetail}>{emp.position} · RUT: {emp.rut}</span>
+                    <span style={s.empName}>{empFullName(emp)}</span>
+                    <span style={s.empDetail}>{emp.position} · RUT: {emp.rut} · Ingreso: {new Date(emp.hireDate).toLocaleDateString('es-CL')}</span>
                   </div>
-                  <button style={s.btnRemove} onClick={() => handleDeleteEmployee(emp.id, emp.name)}>✕</button>
+                  <button style={s.btnRemove} onClick={() => handleDeleteEmployee(emp.id, empFullName(emp))}>✕</button>
                 </div>
               ))}
             </div>
-          ) : (
-            <p style={s.noData}>No hay empleados registrados. Agrega el primero.</p>
-          )}
+          ) : <p style={s.noData}>No hay empleados registrados.</p>}
         </div>
       )}
 
-      {/* ==================== LISTA DE EQUIPOS ==================== */}
+      {/* ══ LISTA EQUIPOS ══ */}
       {loading && <p style={s.loadingText}>Cargando equipos...</p>}
-      {!loading && teams.length === 0 && <div style={s.empty}>No hay equipos aún.</div>}
+      {!loading && teams.length === 0 && (
+        <div style={s.empty}>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>🏢</div>
+          <div>No hay equipos aún.{isAdmin && ' Crea el primero con "+ Nuevo Equipo".'}</div>
+        </div>
+      )}
 
       <div style={s.grid}>
         {teams.map(team => (
           <div key={team.id} style={{ ...s.card, borderTop: `4px solid ${team.status === 'ACTIVE' ? '#16a34a' : '#9ca3af'}` }}>
             <div style={s.cardHeader}>
-              <span style={statusStyle(team.status)}>{team.status}</span>
+              <span style={statusStyle(team.status)}>{team.status === 'ACTIVE' ? '● Activo' : '○ Inactivo'}</span>
               {isAdmin && <button style={s.btnDeleteSmall} onClick={() => handleDelete(team.id, team.name)}>✕</button>}
             </div>
             <h3 style={s.cardTitle}>{team.name}</h3>
             <p style={s.cardDesc}>{team.description}</p>
             <div style={s.cardMeta}>
-              <span style={s.metaItem}>Área: <strong>{team.area}</strong></span>
-              <span style={s.metaItem}>Líder: <strong>{getLeaderName(team.leaderId)}</strong></span>
+              <span style={s.metaItem}>📂 {team.area}</span>
+              <span style={s.metaItem}>👤 Líder: <strong>{getLeaderName(team.leaderId)}</strong></span>
             </div>
+            <div style={s.cardId}>ID: <code style={s.idCode}>{team.id}</code></div>
 
             <div style={s.membersSection}>
               <div style={s.membersHeader}>
                 <span style={s.membersTitle}>Integrantes ({team.members?.length || 0})</span>
                 {isAdmin && (
                   <button style={s.btnAddMember}
-                    onClick={() => { setAddingTo(addingTo === team.id ? null : team.id); setAddEmpId(''); setAddRole(''); loadEmployees(); }}>
+                    onClick={() => { setAddingTo(addingTo === team.id ? null : team.id); setAddEmpId(''); setAddRole(''); }}>
                     {addingTo === team.id ? 'Cancelar' : '+ Agregar'}
                   </button>
                 )}
@@ -226,7 +284,7 @@ export default function TeamsView({ role }: { role: string }) {
                   <select style={s.inputSmall} value={addEmpId} onChange={e => setAddEmpId(e.target.value)}>
                     <option value="">Seleccionar empleado...</option>
                     {availableFor((team.members || []).map(m => m.employeeId)).map(emp =>
-                      <option key={emp.id} value={emp.id}>{emp.name} - {emp.position}</option>)}
+                      <option key={emp.id} value={emp.id}>{empFullName(emp)} — {emp.position}</option>)}
                   </select>
                   <select style={s.inputSmall} value={addRole} onChange={e => setAddRole(e.target.value)}>
                     <option value="">Rol en equipo...</option>
@@ -248,15 +306,13 @@ export default function TeamsView({ role }: { role: string }) {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p style={s.noData}>Sin integrantes</p>
-              )}
+              ) : <p style={s.noData}>Sin integrantes aún</p>}
             </div>
 
             <div style={s.cardFooter}>
               {isAdmin ? (
                 <button style={team.status === 'ACTIVE' ? s.btnWarning : s.btnSuccess} onClick={() => handleStatusToggle(team)}>
-                  {team.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
+                  {team.status === 'ACTIVE' ? '⏸ Desactivar' : '▶ Activar'}
                 </button>
               ) : (
                 <span style={{ fontSize: '13px', color: '#6b7280' }}>Estado: <strong>{team.status}</strong></span>
@@ -266,7 +322,7 @@ export default function TeamsView({ role }: { role: string }) {
         ))}
       </div>
 
-      {/* ==================== MODAL CREAR EQUIPO ==================== */}
+      {/* ══ MODAL CREAR EQUIPO ══ */}
       {showModal && (
         <div style={s.overlay}>
           <div style={s.modal}>
@@ -276,9 +332,7 @@ export default function TeamsView({ role }: { role: string }) {
             </div>
 
             {employees.length === 0 && (
-              <div style={s.alertWarning}>
-                Primero debes registrar empleados en "Gestionar Empleados" para poder asignar líder e integrantes.
-              </div>
+              <div style={s.alertWarning}>⚠️ Primero registra empleados para asignar líder e integrantes.</div>
             )}
 
             <form onSubmit={handleCreate}>
@@ -302,12 +356,12 @@ export default function TeamsView({ role }: { role: string }) {
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={s.label}>Líder del equipo *</label>
+                  <label style={s.label}>Líder *</label>
                   <select style={s.input} required value={form.leaderId}
                     onChange={e => setForm(f => ({ ...f, leaderId: e.target.value }))}>
                     <option value="">Seleccionar líder...</option>
                     {employees.map(emp =>
-                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.position})</option>)}
+                      <option key={emp.id} value={emp.id}>{empFullName(emp)} ({emp.position})</option>)}
                   </select>
                 </div>
               </div>
@@ -317,7 +371,7 @@ export default function TeamsView({ role }: { role: string }) {
                 <select style={s.inputSmall} value={selEmpId} onChange={e => setSelEmpId(e.target.value)}>
                   <option value="">Seleccionar empleado...</option>
                   {availableFor(initMembers.map(m => m.employeeId)).map(emp =>
-                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.position})</option>)}
+                    <option key={emp.id} value={emp.id}>{empFullName(emp)} ({emp.position})</option>)}
                 </select>
                 <select style={s.inputSmall} value={selRole} onChange={e => setSelRole(e.target.value)}>
                   <option value="">Rol...</option>
@@ -325,6 +379,7 @@ export default function TeamsView({ role }: { role: string }) {
                 </select>
                 <button type="button" style={s.btnConfirm} onClick={addInitMember} disabled={!selEmpId || !selRole}>+</button>
               </div>
+
               {initMembers.length > 0 && (
                 <div style={s.membersList}>
                   {initMembers.map((m, i) => (
@@ -333,14 +388,16 @@ export default function TeamsView({ role }: { role: string }) {
                         <span style={s.memberName}>{m.name}</span>
                         <span style={s.memberRole}>{m.role}</span>
                       </div>
-                      <button type="button" style={s.btnRemove} onClick={() => setInitMembers(initMembers.filter((_, j) => j !== i))}>✕</button>
+                      <button type="button" style={s.btnRemove}
+                        onClick={() => setInitMembers(initMembers.filter((_, j) => j !== i))}>✕</button>
                     </div>
                   ))}
                 </div>
               )}
 
               <div style={s.modalActions}>
-                <button type="button" style={s.btnSecondary} onClick={() => { setShowModal(false); setInitMembers([]); }}>Cancelar</button>
+                <button type="button" style={s.btnSecondary}
+                  onClick={() => { setShowModal(false); setInitMembers([]); }}>Cancelar</button>
                 <button type="submit" style={s.btnPrimary} disabled={saving || employees.length === 0}>
                   {saving ? 'Guardando...' : 'Crear Equipo'}
                 </button>
@@ -363,14 +420,15 @@ const s: Record<string, React.CSSProperties> = {
   btnWarning:     { padding: '7px 14px', border: '1px solid #f59e0b', borderRadius: '6px', background: '#fffbeb', color: '#b45309', cursor: 'pointer', fontSize: '13px', fontWeight: 600, width: '100%' },
   btnSuccess:     { padding: '7px 14px', border: '1px solid #86efac', borderRadius: '6px', background: '#f0fdf4', color: '#15803d', cursor: 'pointer', fontSize: '13px', fontWeight: 600, width: '100%' },
   alertError:     { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' },
+  alertSuccess:   { background: '#dcfce7', color: '#15803d', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' },
   alertWarning:   { background: '#fef3c7', color: '#92400e', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' },
   closeBtn:       { border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px', color: 'inherit' },
   loadingText:    { color: '#6b7280', textAlign: 'center', padding: '40px 0' },
   empty:          { color: '#9ca3af', textAlign: 'center', padding: '60px 0', fontSize: '15px' },
   empPanel:       { background: '#fff', borderRadius: '10px', padding: '20px', marginBottom: '24px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' },
   empTitle:       { margin: '0 0 14px 0', fontSize: '16px', fontWeight: 700, color: '#111827' },
-  empForm:        { display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' },
-  empInput:       { flex: 1, minWidth: '140px', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none' },
+  empFormGrid:    { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '14px', alignItems: 'end' },
+  empInput:       { padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none', width: '100%', boxSizing: 'border-box' } as React.CSSProperties,
   empList:        { display: 'flex', flexDirection: 'column', gap: '6px' },
   empRow:         { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f9fafb', borderRadius: '6px', border: '1px solid #e5e7eb' },
   empName:        { fontSize: '13px', fontWeight: 600, color: '#111827', display: 'block' },
@@ -382,6 +440,8 @@ const s: Record<string, React.CSSProperties> = {
   cardDesc:       { margin: 0, color: '#6b7280', fontSize: '14px' },
   cardMeta:       { display: 'flex', gap: '16px', flexWrap: 'wrap' },
   metaItem:       { fontSize: '13px', color: '#6b7280' },
+  cardId:         { fontSize: '11px', color: '#d1d5db' },
+  idCode:         { fontSize: '11px', color: '#9ca3af', fontFamily: 'monospace' },
   cardFooter:     { borderTop: '1px solid #f3f4f6', paddingTop: '12px', marginTop: '4px' },
   membersSection: { background: '#f9fafb', borderRadius: '8px', padding: '12px', marginTop: '4px' },
   membersHeader:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' },
