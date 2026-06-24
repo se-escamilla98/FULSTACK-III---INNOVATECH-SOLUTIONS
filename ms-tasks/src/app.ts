@@ -7,21 +7,27 @@ const app = express();
 const taskController = new TaskController();
 
 app.use(express.json());
+app.set('etag', false);
 setupSwagger(app);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'ms-tasks', uptime: Math.floor(process.uptime()) });
 });
 
-// ZERO TRUST: protege todas las rutas /tasks
+// ─── TASKS ────────────────────────────────────────────────────────────────────
 app.use('/tasks', verifyToken);
+app.use('/projects', verifyToken);
 
-// IMPORTANTE: la ruta más específica va PRIMERO
-app.get('/tasks/project/:projectId',    (req, res) => taskController.getTasksByProject(req, res));
-app.get('/tasks/:id',                   (req, res) => taskController.getTaskById(req, res));
-app.post('/tasks',                      (req, res) => taskController.createTask(req, res));
-app.patch('/tasks/:id',                 (req, res) => taskController.updateTask(req, res));
-app.delete('/tasks/:id',                (req, res) => taskController.deleteTask(req, res));
+app.get('/projects/:projectId/tasks', (req, res) => taskController.getTasksByProject(req, res));
+app.get('/tasks/:id',                 (req, res) => taskController.getTaskById(req, res));
+app.post('/tasks',                    (req, res) => taskController.createTask(req, res));
+app.patch('/tasks/:id',               (req, res) => taskController.updateTask(req, res));
+app.delete('/tasks/:id',              (req, res) => taskController.deleteTask(req, res));
+
+// ─── BITÁCORA ─────────────────────────────────────────────────────────────────
+app.post('/tasks/:id/logs',           (req, res) => taskController.addLog(req, res));
+app.get('/tasks/:id/logs',            (req, res) => taskController.getLogsByTask(req, res));
+app.delete('/tasks/:id/logs/:logId',  (req, res) => taskController.deleteLog(req, res));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

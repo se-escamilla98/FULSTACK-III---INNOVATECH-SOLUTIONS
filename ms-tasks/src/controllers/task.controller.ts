@@ -4,8 +4,9 @@ import { TaskService } from '../services/task.service';
 const taskService = new TaskService();
 
 export class TaskController {
-  
-  // Crear Tarea
+
+  // ==================== TASKS ====================
+
   async createTask(req: Request, res: Response) {
     try {
       const task = await taskService.createTask(req.body);
@@ -15,32 +16,31 @@ export class TaskController {
     }
   }
 
-  // Obtener Tareas por Proyecto
   async getTasksByProject(req: Request, res: Response) {
-  try {
-    const { projectId } = req.params; // <- era "taskId", estaba incorrecto
-    const tasks = await taskService.getTasksByProject(projectId);
-    res.status(200).json(tasks);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    try {
+      const { projectId } = req.params;
+      const tasks = await taskService.getTasksByProject(projectId);
+      res.status(200).json(tasks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   }
-}
 
   async updateTask(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    const data = req.body;
-    const updatedTask = await taskService.updateTask(id, data);
-    res.status(200).json(updatedTask);
+    try {
+      const { id } = req.params;
+      const updatedTask = await taskService.updateTask(id, req.body);
+      res.status(200).json(updatedTask);
     } catch (error: any) {
       res.status(404).json({ error: error.message });
     }
   }
+
   async deleteTask(req: Request, res: Response) {
     try {
       const { id } = req.params;
       await taskService.deleteTask(id);
-      res.status(200).json({ message: "Tarea eliminada correctamente" });
+      res.status(200).json({ message: 'Tarea eliminada correctamente' });
     } catch (error: any) {
       res.status(404).json({ error: error.message });
     }
@@ -50,12 +50,42 @@ export class TaskController {
     try {
       const { id } = req.params;
       const task = await taskService.getTaskById(id);
-      if (!task) return res.status(404).json({ error: "Tarea no encontrada" });
+      if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
       res.status(200).json(task);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   }
 
+  // ==================== BITÁCORA ====================
 
+  async addLog(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const log = await taskService.addLog(id, req.body);
+      res.status(201).json(log);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  async getLogsByTask(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const logs = await taskService.getLogsByTask(id);
+      res.status(200).json(logs);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async deleteLog(req: Request, res: Response) {
+    try {
+      const { logId } = req.params;
+      await taskService.deleteLog(logId);
+      res.status(200).json({ message: 'Entrada de bitácora eliminada' });
+    } catch (error: any) {
+      res.status(404).json({ error: error.message });
+    }
+  }
 }
