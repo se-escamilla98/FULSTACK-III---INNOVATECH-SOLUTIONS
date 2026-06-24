@@ -13,11 +13,16 @@ enum TeamStatus {
 }
 
 model Employee {
-  id        String   @id @default(uuid())
-  name      String
-  rut       String   @unique
-  position  String
-  createdAt DateTime @default(now())
+  id             String   @id @default(uuid())
+  rut            String   @unique
+  firstName      String
+  secondName     String?
+  lastName       String
+  motherLastName String?
+  position       String
+  hireDate       DateTime
+  createdAt      DateTime @default(now())
+  members        Member[]
 }
 
 model Team {
@@ -38,6 +43,7 @@ model Member {
   name       String
   role       String
   teamId     String
-  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
