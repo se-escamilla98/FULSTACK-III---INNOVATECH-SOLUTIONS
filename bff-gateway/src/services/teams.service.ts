@@ -25,7 +25,7 @@ export class TeamsService {
 
     constructor() {
         this.TEAMS_URL = process.env.MS_TEAMS_URL as string;
-
+        
         this.getAllTeamsBreaker = new CircuitBreaker(
             (headers: any) => axios.get(`${this.TEAMS_URL}/teams`, headers),
             CIRCUIT_OPTIONS
@@ -69,7 +69,11 @@ export class TeamsService {
         this.deleteEmployeeBreaker = new CircuitBreaker(
             (id: string, headers: any) => axios.delete(`${this.TEAMS_URL}/employees/${id}`, headers),
             CIRCUIT_OPTIONS
+                
+        
         );
+
+
 
         this.getAllTeamsBreaker.fallback(() => []);
         this.getTeamByIdBreaker.fallback(() => ({ error: 'MS-Teams no disponible.' }));
