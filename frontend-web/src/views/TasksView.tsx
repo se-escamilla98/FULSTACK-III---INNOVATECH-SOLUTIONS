@@ -1,24 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import bffClient from '../api/bffClient';
 
-interface Project { id: string; name: string; }
-interface Team    { id: string; name: string; }
+interface Project { id: string; name: string; teamId?: string; }
+interface Member  { id: string; employeeId: string; name: string; role: string; }
+interface Team    { id: string; name: string; members: Member[]; }
 interface Task {
-  id: string;
-  name: string;
-  description: string;
-  status: string;
-  area: string;
-  assignedTo: string;
-  teamId: string;
-  projectId: string;
+  id: string; name: string; description: string;
+  status: string; area: string; assignedTo: string;
+  teamId: string; projectId: string;
+  logs?: TaskLog[];
+}
+interface TaskLog {
+  id: string; taskId: string; employeeId: string;
+  authorName: string; comment: string; createdAt: string;
 }
 
 const TASK_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED'];
+const STATUS_LABELS: Record<string, string> = {
+  PENDING:     '⏳ Pendiente',
+  IN_PROGRESS: '🔄 En Progreso',
+  COMPLETED:   '✅ Completada',
+  BLOCKED:     '🚫 Bloqueada',
+};
+const AREAS = ['Backend', 'Frontend', 'DevOps', 'QA', 'Diseño', 'Base de Datos', 'Full Stack'];
 
 const statusStyle = (status: string): React.CSSProperties => {
   const map: Record<string, React.CSSProperties> = {
-    PENDING:     { background: '#e2e8f0', color: '#475569' },
+    PENDING:     { background: '#fef9c3', color: '#854d0e' },
     IN_PROGRESS: { background: '#dbeafe', color: '#1d4ed8' },
     COMPLETED:   { background: '#dcfce7', color: '#15803d' },
     BLOCKED:     { background: '#fee2e2', color: '#b91c1c' },
@@ -27,20 +35,27 @@ const statusStyle = (status: string): React.CSSProperties => {
 };
 
 export default function TasksView({ role }: { role: string }) {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [teams,    setTeams]    = useState<Team[]>([]);
-  const [tasks,    setTasks]    = useState<Task[]>([]);
+  const [projects, setProjects]         = useState<Project[]>([]);
+  const [teams, setTeams]               = useState<Team[]>([]);
+  const [tasks, setTasks]               = useState<Task[]>([]);
   const [selectedProject, setSelectedProject] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [saving, setSaving]     = useState(false);
-  const [form, setForm] = useState({
-    name: '', description: '', area: '', assignedTo: '', teamId: '',
-  });
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+  const [success, setSuccess]           = useState<string | null>(null);
+  const [showModal, setShowModal]       = useState(false);
+  const [saving, setSaving]             = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', area: '', assignedTo: '', teamId: '' });
 
-  // Admin y Developer pueden gestionar tareas
+  // Bitácora
+  const [logTaskId, setLogTaskId]       = useState<string | null>(null);
+  const [logComment, setLogComment]     = useState('');
+  const [logSaving, setLogSaving]       = useState(false);
+
   const canEdit = role === 'admin' || role === 'developer';
+
+  useEffect(() => {
+    if (success) { const t = setTimeout(() => setSuccess(null), 3000); return () => clearTimeout(t); }
+  }, [success]);
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -49,11 +64,9 @@ export default function TasksView({ role }: { role: string }) {
           bffClient.get('/projects'),
           bffClient.get('/teams'),
         ]);
-        setProjects(pRes.data);
-        setTeams(tRes.data);
-      } catch {
-        setError('No se pudieron cargar proyectos o equipos.');
-      }
+        setProjects(Array.isArray(pRes.data) ? pRes.data : []);
+        setTeams(Array.isArray(tRes.data) ? tRes.data : []);
+      } catch { setError('No se pudieron cargar proyectos o equipos.'); }
     };
     loadMeta();
   }, []);
@@ -61,43 +74,50 @@ export default function TasksView({ role }: { role: string }) {
   useEffect(() => {
     if (!selectedProject) { setTasks([]); return; }
     const load = async () => {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null);
       try {
         const res = await bffClient.get(`/projects/${selectedProject}/tasks`);
-        setTasks(res.data);
-      } catch {
-        setError('No se pudieron cargar las tareas.');
-      } finally {
-        setLoading(false);
-      }
+        setTasks(Array.isArray(res.data) ? res.data : []);
+      } catch { setError('No se pudieron cargar las tareas.'); }
+      finally { setLoading(false); }
     };
     load();
   }, [selectedProject]);
 
+  // El equipo del proyecto seleccionado
+  const projectTeam = () => {
+    const proj = projects.find(p => p.id === selectedProject);
+    if (!proj?.teamId) return null;
+    return teams.find(t => t.id === proj.teamId) || null;
+  };
+
+  // Miembros disponibles para asignar
+  const teamMembers = (): Member[] => {
+    if (form.teamId) {
+      const t = teams.find(t => t.id === form.teamId);
+      return t?.members || [];
+    }
+    const pt = projectTeam();
+    return pt?.members || [];
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+    e.preventDefault(); setSaving(true);
     try {
-      await bffClient.post('/tasks', { ...form, projectId: selectedProject });
+      const res = await bffClient.post('/tasks', { ...form, projectId: selectedProject });
+      setTasks(prev => [...prev, res.data]);
       setShowModal(false);
       setForm({ name: '', description: '', area: '', assignedTo: '', teamId: '' });
-      const res = await bffClient.get(`/projects/${selectedProject}/tasks`);
-      setTasks(res.data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Error al crear la tarea');
-    } finally {
-      setSaving(false);
-    }
+      setSuccess('Tarea creada correctamente.');
+    } catch (err: any) { setError(err.response?.data?.error || 'Error al crear la tarea'); }
+    finally { setSaving(false); }
   };
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
       await bffClient.patch(`/tasks/${id}`, { status });
       setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t));
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'No se pudo cambiar el estado');
-    }
+    } catch (err: any) { setError(err.response?.data?.error || 'No se pudo cambiar el estado'); }
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -105,89 +125,112 @@ export default function TasksView({ role }: { role: string }) {
     try {
       await bffClient.delete(`/tasks/${id}`);
       setTasks(prev => prev.filter(t => t.id !== id));
-    } catch {
-      setError('No se pudo eliminar la tarea.');
-    }
+    } catch { setError('No se pudo eliminar la tarea.'); }
   };
+
+  // ── Bitácora ──────────────────────────────────────────────────────────────
+  const openLog = async (taskId: string) => {
+    setLogTaskId(taskId); setLogComment('');
+    try {
+      const res = await bffClient.get(`/tasks/${taskId}/logs`);
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, logs: res.data } : t));
+    } catch { setError('No se pudo cargar la bitácora.'); }
+  };
+
+  const handleAddLog = async () => {
+    if (!logComment.trim() || !logTaskId) return;
+    setLogSaving(true);
+    try {
+      await bffClient.post(`/tasks/${logTaskId}/logs`, {
+        employeeId: 'admin',
+        authorName: role === 'admin' ? 'Administrador' : 'Developer',
+        comment: logComment.trim(),
+      });
+      setLogComment('');
+      const res = await bffClient.get(`/tasks/${logTaskId}/logs`);
+      setTasks(prev => prev.map(t => t.id === logTaskId ? { ...t, logs: res.data } : t));
+      setSuccess('Entrada agregada a la bitácora.');
+    } catch { setError('No se pudo agregar la entrada.'); }
+    finally { setLogSaving(false); }
+  };
+
+  const handleDeleteLog = async (taskId: string, logId: string) => {
+    if (!window.confirm('¿Eliminar esta entrada de la bitácora?')) return;
+    try {
+      await bffClient.delete(`/tasks/${taskId}/logs/${logId}`);
+      setTasks(prev => prev.map(t => t.id === taskId
+        ? { ...t, logs: (t.logs || []).filter(l => l.id !== logId) } : t));
+    } catch { setError('No se pudo eliminar la entrada.'); }
+  };
+
+  const logTask = tasks.find(t => t.id === logTaskId);
 
   return (
     <div>
+      {/* ── Toolbar ── */}
       <div style={s.toolbar}>
         <h2 style={s.viewTitle}>
-          Tareas
-          {tasks.length > 0 && <span style={s.badge}>{tasks.length}</span>}
+          Tareas {tasks.length > 0 && <span style={s.badge}>{tasks.length}</span>}
         </h2>
         {canEdit && (
-          <button
-            style={{ ...s.btnPrimary, opacity: selectedProject ? 1 : 0.5 }}
-            disabled={!selectedProject}
-            onClick={() => setShowModal(true)}
-          >
+          <button style={{ ...s.btnPrimary, opacity: selectedProject ? 1 : 0.5 }}
+            disabled={!selectedProject} onClick={() => setShowModal(true)}>
             + Nueva Tarea
           </button>
         )}
       </div>
 
+      {/* ── Filtro proyecto ── */}
       <div style={s.filterBar}>
         <label style={s.filterLabel}>Proyecto:</label>
-        <select
-          style={s.filterSelect}
-          value={selectedProject}
-          onChange={e => setSelectedProject(e.target.value)}
-        >
+        <select style={s.filterSelect} value={selectedProject}
+          onChange={e => setSelectedProject(e.target.value)}>
           <option value="">— Selecciona un proyecto —</option>
-          {projects.map(p => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
 
-      {error && <div style={s.alertError}>{error} <button style={s.closeBtn} onClick={() => setError(null)}>✕</button></div>}
+      {error   && <div style={s.alertError}>{error}<button style={s.closeBtn} onClick={() => setError(null)}>✕</button></div>}
+      {success && <div style={s.alertSuccess}>{success}</div>}
       {loading && <p style={s.loadingText}>Cargando tareas...</p>}
 
+      {!selectedProject && <div style={s.empty}>Selecciona un proyecto para ver sus tareas.</div>}
       {!loading && selectedProject && tasks.length === 0 && (
-        <div style={s.empty}>
-          {canEdit ? 'No hay tareas para este proyecto. ¡Crea la primera!' : 'No hay tareas para este proyecto.'}
-        </div>
-      )}
-      {!selectedProject && (
-        <div style={s.empty}>Selecciona un proyecto para ver sus tareas.</div>
+        <div style={s.empty}>{canEdit ? 'No hay tareas. ¡Crea la primera!' : 'No hay tareas para este proyecto.'}</div>
       )}
 
+      {/* ── Lista de tareas ── */}
       <div style={s.list}>
         {tasks.map(t => (
           <div key={t.id} style={s.card}>
             <div style={s.cardLeft}>
               <div style={s.cardTop}>
-                <span style={statusStyle(t.status)}>{t.status}</span>
+                <span style={statusStyle(t.status)}>{STATUS_LABELS[t.status] || t.status}</span>
                 <span style={s.areaTag}>{t.area}</span>
               </div>
               <h3 style={s.cardTitle}>{t.name}</h3>
-              <p style={s.cardDesc}>{t.description}</p>
+              {t.description && <p style={s.cardDesc}>{t.description}</p>}
               <p style={s.cardMeta}>Asignado a: <strong>{t.assignedTo}</strong></p>
+              <div style={s.cardId}>ID: <code style={s.idCode}>{t.id}</code></div>
             </div>
             <div style={s.cardRight}>
-              {canEdit ? (
+              <button style={s.btnLog} onClick={() => openLog(t.id)}>
+                📋 Bitácora {t.logs && t.logs.length > 0 && `(${t.logs.length})`}
+              </button>
+              {canEdit && (
                 <>
-                  <select
-                    value={t.status}
-                    onChange={e => handleStatusChange(t.id, e.target.value)}
-                    style={s.select}
-                  >
-                    {TASK_STATUSES.map(st => (
-                      <option key={st} value={st}>{st}</option>
-                    ))}
+                  <select value={t.status} onChange={e => handleStatusChange(t.id, e.target.value)} style={s.select}>
+                    {TASK_STATUSES.map(st => <option key={st} value={st}>{STATUS_LABELS[st]}</option>)}
                   </select>
                   <button style={s.btnDeleteCard} onClick={() => handleDelete(t.id, t.name)}>Eliminar</button>
                 </>
-              ) : (
-                <span style={statusStyle(t.status)}>{t.status}</span>
               )}
             </div>
           </div>
         ))}
       </div>
 
+      {/* ══ MODAL NUEVA TAREA ══ */}
       {showModal && (
         <div style={s.overlay}>
           <div style={s.modal}>
@@ -201,8 +244,8 @@ export default function TasksView({ role }: { role: string }) {
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Nombre de la tarea" />
 
-              <label style={s.label}>Descripción *</label>
-              <textarea style={{ ...s.input, height: '70px', resize: 'vertical' }} required
+              <label style={s.label}>Descripción</label>
+              <textarea style={{ ...s.input, height: '70px', resize: 'vertical' }}
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Descripción de la tarea" />
@@ -213,23 +256,29 @@ export default function TasksView({ role }: { role: string }) {
                   <select style={s.input} required value={form.area}
                     onChange={e => setForm(f => ({ ...f, area: e.target.value }))}>
                     <option value="">Seleccionar...</option>
-                    {['Backend', 'Frontend', 'DevOps', 'QA', 'Diseño', 'Base de Datos'].map(a =>
-                      <option key={a} value={a}>{a}</option>)}
+                    {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={s.label}>Asignado a *</label>
-                  <input style={s.input} required value={form.assignedTo}
-                    onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}
-                    placeholder="ej: dev-001" />
+                  <label style={s.label}>Equipo *</label>
+                  <select style={s.input} required value={form.teamId}
+                    onChange={e => setForm(f => ({ ...f, teamId: e.target.value, assignedTo: '' }))}>
+                    <option value="">Seleccionar equipo...</option>
+                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
                 </div>
               </div>
 
-              <label style={s.label}>Equipo *</label>
-              <select style={s.input} required value={form.teamId}
-                onChange={e => setForm(f => ({ ...f, teamId: e.target.value }))}>
-                <option value="">— Selecciona un equipo —</option>
-                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              <label style={s.label}>Asignado a *</label>
+              <select style={s.input} required value={form.assignedTo}
+                onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}>
+                <option value="">
+                  {form.teamId
+                    ? (teamMembers().length > 0 ? 'Seleccionar miembro...' : 'El equipo no tiene integrantes')
+                    : 'Primero selecciona un equipo'}
+                </option>
+                {teamMembers().map(m =>
+                  <option key={m.id} value={m.name}>{m.name} — {m.role}</option>)}
               </select>
 
               <div style={s.modalActions}>
@@ -239,6 +288,65 @@ export default function TasksView({ role }: { role: string }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL BITÁCORA ══ */}
+      {logTaskId && logTask && (
+        <div style={s.overlay}>
+          <div style={s.modal}>
+            <div style={s.modalHeader}>
+              <div>
+                <h3 style={s.modalTitle}>📋 Bitácora</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6b7280' }}>{logTask.name}</p>
+              </div>
+              <button style={s.closeBtn} onClick={() => setLogTaskId(null)}>✕</button>
+            </div>
+
+            {/* Entradas existentes */}
+            <div style={s.logList}>
+              {(!logTask.logs || logTask.logs.length === 0) && (
+                <p style={{ color: '#9ca3af', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
+                  Sin entradas aún.
+                </p>
+              )}
+              {(logTask.logs || []).map(log => (
+                <div key={log.id} style={s.logEntry}>
+                  <div style={s.logHeader}>
+                    <span style={s.logAuthor}>{log.authorName}</span>
+                    <span style={s.logDate}>{new Date(log.createdAt).toLocaleString('es-CL')}</span>
+                    {canEdit && (
+                      <button style={s.btnRemoveLog} onClick={() => handleDeleteLog(logTaskId, log.id)}>✕</button>
+                    )}
+                  </div>
+                  <p style={s.logComment}>{log.comment}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Nueva entrada */}
+            {canEdit && (
+              <div style={s.logForm}>
+                <textarea style={{ ...s.input, height: '70px', resize: 'vertical', marginBottom: '8px' }}
+                  placeholder="Escribe una entrada en la bitácora..."
+                  value={logComment}
+                  onChange={e => setLogComment(e.target.value)} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button style={s.btnSecondary} onClick={() => setLogTaskId(null)}>Cerrar</button>
+                  <button style={s.btnPrimary} onClick={handleAddLog}
+                    disabled={logSaving || !logComment.trim()}>
+                    {logSaving ? 'Guardando...' : '+ Agregar entrada'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!canEdit && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button style={s.btnSecondary} onClick={() => setLogTaskId(null)}>Cerrar</button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -256,26 +364,38 @@ const s: Record<string, React.CSSProperties> = {
   btnPrimary:   { padding: '9px 18px', border: 'none', borderRadius: '6px', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '14px' },
   btnSecondary: { padding: '9px 18px', border: '1px solid #d1d5db', borderRadius: '6px', background: '#fff', color: '#374151', fontWeight: 600, cursor: 'pointer', fontSize: '14px' },
   btnDeleteCard:{ padding: '6px 12px', border: '1px solid #fca5a5', borderRadius: '6px', background: '#fff', color: '#dc2626', cursor: 'pointer', fontSize: '13px', fontWeight: 600 },
-  alertError:   { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' },
+  btnLog:       { padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: '6px', background: '#f9fafb', color: '#374151', cursor: 'pointer', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' },
+  btnRemoveLog: { border: 'none', background: 'transparent', color: '#d1d5db', cursor: 'pointer', fontSize: '13px', padding: '0 4px', marginLeft: 'auto' },
+  alertError:   { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' },
+  alertSuccess: { background: '#dcfce7', color: '#15803d', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' },
   closeBtn:     { border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px', color: 'inherit' },
   loadingText:  { color: '#6b7280', textAlign: 'center', padding: '40px 0' },
   empty:        { color: '#9ca3af', textAlign: 'center', padding: '60px 0', fontSize: '15px' },
   list:         { display: 'flex', flexDirection: 'column', gap: '12px' },
-  card:         { background: '#fff', borderRadius: '10px', padding: '18px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' },
+  card:         { background: '#fff', borderRadius: '10px', padding: '18px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' },
   cardLeft:     { flex: 1, minWidth: 0 },
   cardTop:      { display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' },
   cardTitle:    { margin: '0 0 4px 0', fontSize: '15px', fontWeight: 700, color: '#111827' },
   cardDesc:     { margin: '0 0 6px 0', color: '#6b7280', fontSize: '13px' },
-  cardMeta:     { margin: 0, fontSize: '12px', color: '#9ca3af' },
+  cardMeta:     { margin: '0 0 4px 0', fontSize: '12px', color: '#9ca3af' },
+  cardId:       { fontSize: '11px', color: '#d1d5db' },
+  idCode:       { fontSize: '11px', color: '#9ca3af', fontFamily: 'monospace' },
   cardRight:    { display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, alignItems: 'flex-end' },
   areaTag:      { background: '#f3f4f6', color: '#374151', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 },
   select:       { padding: '7px 10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px', cursor: 'pointer' },
   overlay:      { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
   modal:        { background: '#fff', borderRadius: '12px', padding: '28px', width: '520px', maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' },
-  modalHeader:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+  modalHeader:  { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' },
   modalTitle:   { margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' },
   modalActions: { display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' },
   label:        { display: 'block', fontWeight: 600, fontSize: '13px', marginBottom: '6px', color: '#374151' },
   input:        { width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px', boxSizing: 'border-box', marginBottom: '14px', outline: 'none' } as React.CSSProperties,
   row:          { display: 'flex', gap: '16px' },
+  logList:      { maxHeight: '300px', overflowY: 'auto', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px' },
+  logEntry:     { background: '#f9fafb', borderRadius: '8px', padding: '12px', border: '1px solid #e5e7eb' },
+  logHeader:    { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' },
+  logAuthor:    { fontSize: '13px', fontWeight: 700, color: '#111827' },
+  logDate:      { fontSize: '11px', color: '#9ca3af' },
+  logComment:   { margin: 0, fontSize: '13px', color: '#374151', lineHeight: 1.5 },
+  logForm:      { borderTop: '1px solid #f3f4f6', paddingTop: '16px' },
 };
