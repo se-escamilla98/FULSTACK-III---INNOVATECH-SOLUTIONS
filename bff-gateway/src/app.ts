@@ -23,7 +23,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
+app.set('etag', false);  
 // 1. Interfaz de Swagger - Pública e independiente
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
