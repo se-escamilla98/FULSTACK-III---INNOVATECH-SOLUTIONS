@@ -7,15 +7,38 @@ export class TeamService {
 
   // ==================== EMPLOYEES ====================
 
-  async createEmployee(data: { name: string; rut: string; position: string }) {
-    if (!data.name?.trim()) throw new Error('El nombre del empleado es obligatorio');
-    if (!data.rut?.trim()) throw new Error('El RUT del empleado es obligatorio');
-    if (!data.position?.trim()) throw new Error('El cargo del empleado es obligatorio');
-    return await prisma.employee.create({ data });
+  async createEmployee(data: {
+    rut: string;
+    firstName: string;
+    secondName?: string;
+    lastName: string;
+    motherLastName?: string;
+    position: string;
+    hireDate: string;
+  }) {
+    if (!data.firstName?.trim()) throw new Error('El nombre es obligatorio');
+    if (!data.lastName?.trim())  throw new Error('El apellido paterno es obligatorio');
+    if (!data.rut?.trim())       throw new Error('El RUT es obligatorio');
+    if (!data.position?.trim())  throw new Error('El cargo es obligatorio');
+    if (!data.hireDate)          throw new Error('La fecha de contratación es obligatoria');
+
+    return await prisma.employee.create({
+      data: {
+        rut:           data.rut,
+        firstName:     data.firstName,
+        secondName:    data.secondName || null,
+        lastName:      data.lastName,
+        motherLastName: data.motherLastName || null,
+        position:      data.position,
+        hireDate:      new Date(data.hireDate),
+      }
+    });
   }
 
   async getAllEmployees() {
-    return await prisma.employee.findMany({ orderBy: { name: 'asc' } });
+    return await prisma.employee.findMany({
+      orderBy: { lastName: 'asc' }
+    });
   }
 
   async deleteEmployee(id: string) {
@@ -102,7 +125,7 @@ export class TeamService {
         where: { id },
         include: { members: true },
       });
-    } catch (error) {
+    } catch {
       throw new Error(`No se pudo eliminar el equipo con ID ${id}. Verifique si existe.`);
     }
   }
