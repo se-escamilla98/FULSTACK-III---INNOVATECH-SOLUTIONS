@@ -29,8 +29,15 @@ services:
       POSTGRES_DB: db_tasks
     ports:
       - "5433:5432"
+    volumes:
+      - db-tasks-data:/var/lib/postgresql/data
     networks:
       - innovatech-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U johndoe -d db_tasks"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   db-projects:
     image: postgres:15
@@ -41,8 +48,15 @@ services:
       POSTGRES_DB: db_projects
     ports:
       - "5434:5432"
+    volumes:
+      - db-projects-data:/var/lib/postgresql/data
     networks:
       - innovatech-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_projects -d db_projects"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   db-teams:
     image: postgres:15
@@ -53,8 +67,15 @@ services:
       POSTGRES_DB: db_teams
     ports:
       - "5435:5432"
+    volumes:
+      - db-teams-data:/var/lib/postgresql/data
     networks:
       - innovatech-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_teams -d db_teams"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # ==================== MICROSERVICIOS ====================
 
@@ -62,12 +83,15 @@ services:
     build: ./ms-tasks
     image: innovatech-ms-tasks:latest
     restart: always
+    # Ejecuta la migración antes de levantar el servicio
+    command: sh -c "npx prisma migrate deploy && node dist/app.js"
     environment:
       DATABASE_URL: postgresql://johndoe:randompassword@db-tasks:5432/db_tasks
       PORT: 3001
-      JWT_SECRET: innovatech-secret-key-2026
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
-      - db-tasks
+      db-tasks:
+        condition: service_healthy
     networks:
       - innovatech-network
 
@@ -75,13 +99,15 @@ services:
     build: ./ms-projects
     image: innovatech-ms-projects:latest
     restart: always
+    command: sh -c "npx prisma migrate deploy && node dist/app.js"
     environment:
       DATABASE_URL: postgresql://user_projects:password_projects@db-projects:5432/db_projects
       PORT: 3002
       MS_TASKS_URL: http://ms-tasks:3001
-      JWT_SECRET: innovatech-secret-key-2026
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
-      - db-projects
+      db-projects:
+        condition: service_healthy
     networks:
       - innovatech-network
 
@@ -89,19 +115,20 @@ services:
     build: ./ms-teams
     image: innovatech-ms-teams:latest
     restart: always
+    command: sh -c "npx prisma migrate deploy && node dist/app.js"
     environment:
       DATABASE_URL: postgresql://user_teams:password_teams@db-teams:5432/db_teams
       PORT: 3003
-      JWT_SECRET: innovatech-secret-key-2026
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
-      - db-teams
+      db-teams:
+        condition: service_healthy
     networks:
       - innovatech-network
 
   # ==================== BFF GATEWAY ====================
-  # Sin puerto expuesto al host — Traefik balancea el trafico
+  # Sin puerto expuesto al host - Traefik balancea el trafico
   # Compose: docker compose up --build --scale bff=3
-  # Swarm:   .\deploy-swarm.ps1
 
   bff:
     build: ./bff-gateway
@@ -112,7 +139,7 @@ services:
       MS_TASKS_URL: http://ms-tasks:3001
       MS_PROJECTS_URL: http://ms-projects:3002
       MS_TEAMS_URL: http://ms-teams:3003
-      JWT_SECRET: innovatech-secret-key-2026
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       - ms-tasks
       - ms-projects
@@ -156,6 +183,11 @@ services:
       - bff
     networks:
       - innovatech-network
+
+volumes:
+  db-tasks-data:
+  db-projects-data:
+  db-teams-data:
 
 networks:
   innovatech-network:
