@@ -47,9 +47,9 @@ export default function TasksView({ role }: { role: string }) {
   const [form, setForm] = useState({ name: '', description: '', area: '', assignedTo: '', teamId: '' });
 
   // Bitácora
-  const [logTaskId, setLogTaskId]       = useState<string | null>(null);
-  const [logComment, setLogComment]     = useState('');
-  const [logSaving, setLogSaving]       = useState(false);
+  const [logTaskId, setLogTaskId]   = useState<string | null>(null);
+  const [logComment, setLogComment] = useState('');
+  const [logSaving, setLogSaving]   = useState(false);
 
   const canEdit = role === 'admin' || role === 'developer';
 
@@ -84,21 +84,17 @@ export default function TasksView({ role }: { role: string }) {
     load();
   }, [selectedProject]);
 
-  // El equipo del proyecto seleccionado
-  const projectTeam = () => {
-    const proj = projects.find(p => p.id === selectedProject);
-    if (!proj?.teamId) return null;
-    return teams.find(t => t.id === proj.teamId) || null;
-  };
-
-  // Miembros disponibles para asignar
   const teamMembers = (): Member[] => {
     if (form.teamId) {
       const t = teams.find(t => t.id === form.teamId);
       return t?.members || [];
     }
-    const pt = projectTeam();
-    return pt?.members || [];
+    const proj = projects.find(p => p.id === selectedProject);
+    if (proj?.teamId) {
+      const t = teams.find(t => t.id === proj.teamId);
+      return t?.members || [];
+    }
+    return [];
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -144,7 +140,7 @@ export default function TasksView({ role }: { role: string }) {
       await bffClient.post(`/tasks/${logTaskId}/logs`, {
         employeeId: 'admin',
         authorName: role === 'admin' ? 'Administrador' : 'Developer',
-        comment: logComment.trim(),
+        comment:    logComment.trim(),
       });
       setLogComment('');
       const res = await bffClient.get(`/tasks/${logTaskId}/logs`);
@@ -167,7 +163,6 @@ export default function TasksView({ role }: { role: string }) {
 
   return (
     <div>
-      {/* ── Toolbar ── */}
       <div style={s.toolbar}>
         <h2 style={s.viewTitle}>
           Tareas {tasks.length > 0 && <span style={s.badge}>{tasks.length}</span>}
@@ -180,7 +175,6 @@ export default function TasksView({ role }: { role: string }) {
         )}
       </div>
 
-      {/* ── Filtro proyecto ── */}
       <div style={s.filterBar}>
         <label style={s.filterLabel}>Proyecto:</label>
         <select style={s.filterSelect} value={selectedProject}
@@ -199,7 +193,6 @@ export default function TasksView({ role }: { role: string }) {
         <div style={s.empty}>{canEdit ? 'No hay tareas. ¡Crea la primera!' : 'No hay tareas para este proyecto.'}</div>
       )}
 
-      {/* ── Lista de tareas ── */}
       <div style={s.list}>
         {tasks.map(t => (
           <div key={t.id} style={s.card}>
@@ -278,7 +271,7 @@ export default function TasksView({ role }: { role: string }) {
                     : 'Primero selecciona un equipo'}
                 </option>
                 {teamMembers().map(m =>
-                  <option key={m.id} value={m.name}>{m.name} — {m.role}</option>)}
+                  <option key={m.id} value={m.employeeId}>{m.name} — {m.role}</option>)}
               </select>
 
               <div style={s.modalActions}>
@@ -304,7 +297,6 @@ export default function TasksView({ role }: { role: string }) {
               <button style={s.closeBtn} onClick={() => setLogTaskId(null)}>✕</button>
             </div>
 
-            {/* Entradas existentes */}
             <div style={s.logList}>
               {(!logTask.logs || logTask.logs.length === 0) && (
                 <p style={{ color: '#9ca3af', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
@@ -325,7 +317,6 @@ export default function TasksView({ role }: { role: string }) {
               ))}
             </div>
 
-            {/* Nueva entrada */}
             {canEdit && (
               <div style={s.logForm}>
                 <textarea style={{ ...s.input, height: '70px', resize: 'vertical', marginBottom: '8px' }}
