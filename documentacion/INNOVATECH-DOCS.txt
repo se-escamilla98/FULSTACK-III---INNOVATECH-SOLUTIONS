@@ -2,7 +2,7 @@
               INNOVATECH SOLUTIONS - DOCUMENTACION TECNICA COMPLETA
   Microservicios | Node.js + TypeScript + Prisma + Docker + JWT + Circuit Breaker
               + Traefik Load Balancer + Docker Swarm + Monitoreo
-                          Version 6.0 | DuocUC 2026
+                          Version 7.0 | DuocUC 2026
 ==================================================================================
 
 INDICE
@@ -18,38 +18,31 @@ INDICE
     2.3  Activar WSL 2 (solo Windows Home)
     2.4  Archivos .env (critico)
     2.5  Archivos tsconfig.json
-    2.6  Dockerfiles (con HEALTHCHECK)
-    2.7  Archivo .dockerignore (obligatorio)
+    2.6  Dockerfiles
+    2.7  Archivo .dockerignore
     2.8  package.json de cada servicio
     2.9  Instalar dependencias
     2.10 Verificar compilacion local
     2.11 docker-compose.yml completo
-    2.12 Traefik - Load Balancer (traefik/dynamic.yml)
+    2.12 Traefik - Load Balancer
     2.13 MS-Monitor - Servicio de monitoreo
-    2.14 Levantar el sistema (Docker Compose)
-    2.15 Levantar el sistema (Docker Swarm)
-    2.16 Ejecutar migraciones
-    2.17 Verificar funcionamiento
-    2.18 Comandos del dia a dia
-    2.19 Errores comunes y soluciones
+    2.14 Levantar el sistema
+    2.15 Ejecutar migraciones
+    2.16 Verificar funcionamiento
+    2.17 Comandos del dia a dia
+    2.18 Errores comunes y soluciones
 
-  PARTE 3 - GUIA DE PRUEBAS
-    3.1  Requisitos para las pruebas
-    3.2  Como usar Swagger UI
-    3.3  Como usar CMD (curl.exe)
-    3.4  Como usar PowerShell (Invoke-WebRequest)
-    3.5  Autenticacion JWT - generar y usar tokens
-    3.6  Pruebas MS-Projects
-    3.7  Pruebas MS-Tasks
-    3.8  Pruebas MS-Teams
-    3.9  Pruebas BFF Gateway y endpoints especiales
-    3.10 Prueba del Load Balancer (Traefik + /whoami)
-    3.11 Prueba del Monitor (ms-monitor)
-    3.12 Pruebas del Circuit Breaker
-    3.13 Prueba de Auto-Healing con Docker Swarm
-    3.14 Prueba de Escalado en Docker Swarm
-    3.15 Flujo de integracion completo
-    3.16 Codigos HTTP de referencia
+  PARTE 3 - ROLES Y FUNCIONALIDADES DEL FRONTEND
+    3.1  Vista Admin
+    3.2  Vista Developer
+    3.3  Vista Reader (Lector)
+    3.4  Autenticacion dinamica
+
+  PARTE 4 - GUIA DE PRUEBAS
+    4.1  Pruebas basicas por microservicio
+    4.2  Prueba del Circuit Breaker
+    4.3  Prueba de resiliencia JWT
+    4.4  Flujo de integracion completo
 
 ================================================================================
 PARTE 1 - STACK TECNOLOGICO Y ARQUITECTURA
@@ -67,73 +60,39 @@ PARTE 1 - STACK TECNOLOGICO Y ARQUITECTURA
   Prisma ORM            v5.22.0         ORM para PostgreSQL (version fija, sin ^)
   PostgreSQL            v15.0           Base de datos relacional (imagen Docker)
   Docker Desktop        v4.x+           Contenedorizacion y virtualizacion
-  Docker Compose        v3.8            Orquestacion multi-contenedor (desarrollo)
-  Docker Swarm          -               Orquestacion en modo cluster (produccion)
+  Docker Compose        v3.8            Orquestacion multi-contenedor
+  Docker Swarm          -               Orquestacion en modo cluster
   Traefik               v3.0            Reverse proxy y load balancer
   Swagger UI Express    v5.x            Interfaz visual de la documentacion API
-  Swagger JSDoc         v6.x            Generador de especificaciones OpenAPI 3.0
   jsonwebtoken          v9.0.2          Generacion y validacion de JWT
+  bcrypt                v5.x            Hashing seguro de contrasenas
   Opossum               v9.0.0          Implementacion del Circuit Breaker
   Axios                 v1.7.x          Comunicacion HTTP entre microservicios
-  dotenv                v16.x           Gestion de variables de entorno
-  ts-node-dev           v2.0.0          Compilacion en caliente (desarrollo)
   React                 v18.x           Frontend SPA
   Vite                  v5.x            Bundler y dev server del frontend
-  WSL 2                 -               Subsistema Linux para Windows (Docker)
 
 NOTA CRITICA: Prisma fijado en "5.22.0" SIN el simbolo ^ en package.json.
-Si se instala Prisma v6 pueden ocurrir problemas de compatibilidad.
 
 --------------------------------------------------------------------------------
 1.2 ARQUITECTURA DEL SISTEMA
 --------------------------------------------------------------------------------
 
-El sistema implementa una arquitectura de microservicios con las siguientes
-capas en cada servicio:
-
-  Capa de Entrada (App/Routes)
-    Recibe peticiones HTTP externas. Define las rutas y las conecta
-    con los controladores.
-
-  Capa de Controlador
-    Valida que los datos de la peticion sean correctos (campos requeridos,
-    tipos). No contiene logica de negocio.
-
-  Capa de Servicio
-    Donde reside la logica de negocio (reglas y calculos). Es la unica
-    que interactua con Prisma y la base de datos.
-
-  Capa de Persistencia (Prisma ORM)
-    Transforma filas de la base de datos en objetos TypeScript y viceversa.
-    Genera clientes con autocompletado y validacion de tipos.
-
-COMUNICACION ENTRE SERVICIOS (v6.0 con Traefik y Swarm):
-
-  [Navegador / Cliente externo]
-       |
-       v  puerto 80
+  [Navegador :5173]
+        |
+        v  puerto 80
   [Traefik v3.0]  <- Load Balancer, Health Check, Reverse Proxy
-       |
-       v  round-robin entre 3 instancias
-  [BFF Gateway x3 replicas]  <- Swagger Unificado, JWT, Circuit Breaker, /whoami
-       |
-       +---> [MS-Projects] ---> [db-projects]
-       |
-       +---> [MS-Tasks   ] ---> [db-tasks   ]
-       |
-       +---> [MS-Teams   ] ---> [db-teams   ]
+        |
+        v  round-robin entre replicas
+  [BFF Gateway :3000]  <- JWT, Circuit Breaker, Swagger, BD Usuarios
+        |
+        +---> [MS-Projects] ---> [db-projects :5434]
+        |
+        +---> [MS-Tasks   ] ---> [db-tasks    :5433]
+        |
+        +---> [MS-Teams   ] ---> [db-teams    :5435]
 
-  [MS-Monitor :4000]  <- Dashboard HTML + JSON, consulta /health de cada servicio
-
-  [Docker Swarm]  <- Mantiene replicas, auto-healing, rolling updates
-
-NOTAS DE ARQUITECTURA:
-  - Los microservicios NO tienen puertos expuestos al host (Zero Trust a nivel red).
-  - Traefik es el unico punto de entrada a la API (puerto 80).
-  - El BFF corre con 3 replicas en Swarm; Traefik balancea via DNS round-robin.
-  - MS-Monitor es un servicio independiente que consulta /health de cada MS.
-  - El frontend corre en puerto 5173 y apunta a http://localhost (Traefik).
-  - Docker Swarm gestiona el reinicio automatico si cae una replica.
+  [DB-BFF :5436]     <- BD exclusiva del BFF para usuarios dinamicos
+  [MS-Monitor :4000] <- Dashboard HTML + JSON, consulta /health de cada servicio
 
 PUERTOS EXPUESTOS AL HOST:
   Servicio          Puerto    Descripcion
@@ -141,192 +100,81 @@ PUERTOS EXPUESTOS AL HOST:
   traefik           8080      Dashboard de Traefik
   frontend-web      5173      Interfaz React
   ms-monitor        4000      Dashboard de monitoreo
-  db-tasks          5433      PostgreSQL de tareas (solo Compose, no Swarm)
-  db-projects       5434      PostgreSQL de proyectos (solo Compose, no Swarm)
-  db-teams          5435      PostgreSQL de equipos (solo Compose, no Swarm)
-
-PUERTOS INTERNOS (solo dentro de la red Docker, no accesibles desde el host):
-  bff-gateway       3000      Accedido por Traefik via http://bff:3000
-  ms-tasks          3001      Accedido por BFF via http://ms-tasks:3001
-  ms-projects       3002      Accedido por BFF via http://ms-projects:3002
-  ms-teams          3003      Accedido por BFF via http://ms-teams:3003
+  db-tasks          5433      PostgreSQL de tareas
+  db-projects       5434      PostgreSQL de proyectos
+  db-teams          5435      PostgreSQL de equipos
+  db-bff            5436      PostgreSQL de usuarios del BFF
 
 --------------------------------------------------------------------------------
-1.3 JUSTIFICACION TECNICA (PARA DEFENSA ORAL / INFORME EFT)
+1.3 JUSTIFICACION TECNICA (PARA DEFENSA ORAL)
 --------------------------------------------------------------------------------
 
 MICROSERVICIO:
-  Componente de software independiente que se encarga de un dominio especifico
-  (ej: Tareas, Proyectos, Equipos). Permite escalar horizontalmente cada modulo
-  de forma independiente segun la demanda del negocio.
+  Componente independiente que gestiona un dominio especifico.
+  Innovatech divide en: Proyectos, Tareas, Equipos/Empleados.
 
-ENDPOINT:
-  Punto de acceso o URL de una API donde se envia una peticion HTTP.
+JWT DINAMICO (resiliencia):
+  El JWT_SECRET se genera al levantar el sistema usando crypto.randomBytes(64).
+  Si el secret NO esta definido en el .env, cada reinicio genera uno nuevo.
+  Al reiniciar, todos los tokens anteriores quedan invalidos.
+  El frontend detecta el 401 automaticamente y redirige al login.
+  Esto demuestra resiliencia: el sistema se recupera de sesiones invalidas
+  sin intervencion manual del usuario.
 
-PAYLOAD:
-  Los datos reales que se envian en el cuerpo de una peticion JSON.
-
-MIGRACION (PRISMA):
-  Proceso que traduce los cambios del modelo de datos en el codigo a cambios
-  estructurales en la base de datos SQL (crea o modifica tablas).
-
-MIDDLEWARE:
-  Codigo que se ejecuta entre la recepcion de la peticion y la respuesta final.
-  Usado en este proyecto para validar JWT en cada endpoint (Zero Trust).
-
-JWT (JSON Web Token):
-  Estandar para transmitir informacion de forma segura entre partes como un
-  objeto JSON firmado. En Innovatech, cada peticion debe incluir un token valido.
-
-CIRCUIT BREAKER:
-  Patron de resiliencia que protege al sistema cuando un microservicio falla
-  repetidamente. Funciona igual que un disyuntor electrico: cuando hay demasiados
-  fallos, "abre el circuito" y retorna un fallback inmediato en vez de esperar
-  timeouts. Implementado con la libreria Opossum en el BFF Gateway.
-
-  Estados del circuito:
-    CLOSED    -> Todo normal. Las llamadas pasan al microservicio.
-    OPEN      -> Demasiados fallos. Las llamadas retornan el fallback
-                 inmediatamente sin tocar el microservicio caido.
-    HALF-OPEN -> Periodo de prueba. Se deja pasar una llamada para verificar
-                 si el servicio se recupero. Si pasa: vuelve a CLOSED.
-                 Si falla: vuelve a OPEN.
-
-  Configuracion en Innovatech:
-    timeout: 3000ms               <- llamadas que tardan mas de 3s cuentan como fallo
-    errorThresholdPercentage: 50  <- si el 50% de llamadas fallan, abre el circuito
-    resetTimeout: 10000ms         <- despues de 10s en Open, pasa a Half-Open
-
-  Principio "Fail Fast": en vez de acumular threads bloqueados esperando timeouts,
-  el circuito abierto retorna inmediatamente. Protege al BFF, al microservicio
-  caido (no lo bombardea) y al usuario (recibe respuesta util de inmediato).
+CIRCUIT BREAKER (Opossum):
+  Patron que protege al sistema cuando un microservicio falla.
+  Estados: CLOSED (normal) -> OPEN (fallback inmediato) -> HALF-OPEN (prueba)
+  Configuracion: timeout=3s, errorThreshold=50%, resetTimeout=10s
 
 ZERO TRUST:
-  Modelo de seguridad que exige autenticacion en CADA peticion, sin importar
-  el origen. En Innovatech, cada microservicio valida el JWT individualmente,
-  incluso en acceso directo (sin pasar por el BFF).
+  Cada microservicio valida el JWT independientemente.
+  El BFF no es el unico punto de autenticacion.
 
-TRAEFIK (REVERSE PROXY / LOAD BALANCER):
-  Software que recibe todo el trafico externo y lo distribuye entre las instancias
-  disponibles de un servicio. En Innovatech, Traefik escucha en el puerto 80 y
-  reenvía las peticiones al BFF Gateway usando DNS round-robin.
-  Ventaja: permite escalar el BFF sin cambiar la URL del cliente.
-  Proveedor de configuracion: file provider (traefik/dynamic.yml), ya que el
-  Docker provider no funciona en Docker Desktop sobre Windows.
+DATABASE PER SERVICE:
+  Cada microservicio tiene su propia BD PostgreSQL.
+  Bajo acoplamiento: cambios en una BD no afectan a los demas.
 
-DOCKER SWARM:
-  Modo de cluster nativo de Docker que convierte un host en un nodo manager
-  capaz de gestionar servicios con replicas, restart automatico y rolling updates.
-  Diferencia con Compose: Compose levanta contenedores; Swarm los gestiona como
-  servicios con N replicas y garantiza que siempre haya el numero configurado.
-
-  Terminos clave de Swarm:
-    Stack    -> grupo de servicios desplegados juntos (equivale al compose)
-    Service  -> unidad gestionada con replicas (ej: innovatech_bff con 3 replicas)
-    Task     -> una instancia concreta de un service (un contenedor)
-    Overlay  -> red virtual que conecta contenedores en el cluster
-    Config   -> almacen de archivos de configuracion dentro del Swarm
-
-AUTO-HEALING:
-  Cuando un contenedor (task) falla, el manager de Swarm detecta que el numero
-  de replicas activas es menor al deseado y lanza una nueva instancia
-  automaticamente en segundos, sin intervencion humana.
-
-ROLLING UPDATE (ACTUALIZACION SIN DOWNTIME):
-  Al actualizar una imagen, Swarm reemplaza las replicas de a una: primero levanta
-  la nueva, verifica que este saludable, luego apaga la antigua.
-  Configurado con: parallelism=1, delay=10s, order=start-first.
-
-HEALTHCHECK:
-  Instruccion en el Dockerfile que permite a Docker (y Swarm) saber si un
-  contenedor esta realmente listo para recibir trafico. Usa wget contra /health.
-  Si falla 3 veces seguidas, Docker marca el contenedor como "unhealthy".
-
-MS-MONITOR:
-  Microservicio propio que consulta el endpoint /health de cada servicio cada
-  15 segundos y expone un dashboard HTML en el puerto 4000. Permite visualizar
-  el estado del sistema sin acceder a logs de Docker.
-
-JUSTIFICACION DE ELECCIONES TECNOLOGICAS:
-  "La eleccion de TypeScript y Prisma responde a la necesidad de Innovatech de
-  contar con un sistema mantenible y con baja tasa de errores en produccion.
-  La arquitectura de microservicios sobre Docker Swarm garantiza que la solucion
-  pueda escalar horizontalmente con auto-healing, permitiendo que cada modulo
-  crezca de forma independiente segun la demanda del negocio. Traefik como
-  load balancer elimina el punto unico de fallo en el BFF Gateway."
+AUTH DINAMICA:
+  Los developers se crean en la BD del BFF al registrar un empleado.
+  Username = RUT del empleado.
+  Password definida por el admin al momento del registro.
+  Admin y lector son usuarios fijos del sistema (en memoria).
 
 --------------------------------------------------------------------------------
 1.4 ESTRUCTURA DE CARPETAS
 --------------------------------------------------------------------------------
 
   INNOVATECH-SOLUTIONS/
-  |-- docker-compose.yml          <- desarrollo local (Docker Compose)
-  |-- docker-stack.yml            <- produccion/Swarm (Docker Stack deploy)
-  |-- deploy-swarm.ps1            <- script PowerShell para desplegar en Swarm
-  |-- traefik/
-  |   `-- dynamic.yml             <- configuracion del load balancer Traefik
-  |-- ms-monitor/
-  |   |-- Dockerfile
-  |   |-- package.json / tsconfig.json
-  |   `-- src/app.ts              <- dashboard HTML + API /status + /health
-  |-- frontend-web/
-  |   |-- Dockerfile / .dockerignore
-  |   |-- package.json / vite.config.ts
-  |   `-- src/
-  |       |-- App.tsx             <- login usa VITE_BFF_URL via bffClient.ts
-  |       `-- api/bffClient.ts    <- BFF_BASE = import.meta.env.VITE_BFF_URL
+  |-- docker-compose.yml
+  |-- .env                          <- JWT_SECRET + VITE_BFF_URL (NO a git)
+  |-- generate-env.ps1              <- script para rotar JWT_SECRET
+  |-- traefik/dynamic.yml
   |-- bff-gateway/
-  |   |-- Dockerfile
-  |   |-- .dockerignore
-  |   |-- package.json
-  |   |-- tsconfig.json
-  |   |-- .env
+  |   |-- prisma/schema.prisma      <- modelo User
   |   `-- src/
   |       |-- app.ts
-  |       |-- auth/
-  |       |   `-- auth.routes.ts
-  |       |-- config/
-  |       |   |-- jwt.config.ts
-  |       |   `-- swagger.config.ts
-  |       |-- middleware/
-  |       |   `-- auth.middleware.ts
-  |       |-- routes/
-  |       |   |-- projects.routes.ts
-  |       |   |-- tasks.routes.ts
-  |       |   `-- teams.routes.ts
-  |       `-- services/
-  |           |-- projects.service.ts  <- con Circuit Breaker
-  |           |-- tasks.service.ts     <- con Circuit Breaker
-  |           `-- teams.service.ts     <- con Circuit Breaker
+  |       |-- auth/auth.routes.ts   <- login + CRUD usuarios dinamicos
+  |       |-- config/jwt.config.ts  <- secret dinamico
+  |       `-- services/             <- circuit breakers
   |-- ms-projects/
-  |   |-- Dockerfile / .dockerignore / package.json / tsconfig.json / .env
-  |   |-- prisma/schema.prisma
+  |   |-- prisma/schema.prisma      <- Project (con teamId, area)
   |   `-- src/
-  |       |-- app.ts
-  |       |-- controllers/project.controller.ts
-  |       |-- services/project.service.ts
-  |       |-- factories/project.factory.ts
-  |       `-- middlewares/auth.middleware.ts
   |-- ms-tasks/
-  |   |-- Dockerfile / .dockerignore / package.json / tsconfig.json / .env
-  |   |-- prisma/schema.prisma
+  |   |-- prisma/schema.prisma      <- Task + TaskLog (bitacora)
   |   `-- src/
-  |       |-- app.ts
-  |       |-- controllers/task.controller.ts
-  |       |-- services/task.service.ts
-  |       `-- middlewares/auth.middleware.ts
-  `-- ms-teams/
-      |-- Dockerfile / .dockerignore / package.json / tsconfig.json / .env
-      |-- prisma/schema.prisma
+  |-- ms-teams/
+  |   |-- prisma/schema.prisma      <- Employee + Team + Member
+  |   `-- src/
+  `-- frontend-web/
       `-- src/
-          |-- app.ts
-          |-- controllers/team.controller.ts
-          |-- services/team.service.ts
-          |-- factories/team.factory.ts
-          `-- middlewares/auth.middleware.ts
-
-REGLA DE LIMPIEZA: La raiz de cada microservicio solo debe tener:
-  Dockerfile, .dockerignore, package.json, tsconfig.json, .env, prisma/, src/
+          |-- App.tsx               <- auth + tabs por rol + employeeId
+          |-- api/bffClient.ts      <- interceptor 401/403
+          `-- views/
+              |-- ProjectsView.tsx  <- admin: busqueda, asignacion equipo
+              |-- TasksView.tsx     <- admin: bitacora, dropdown miembros
+              |-- TeamsView.tsx     <- admin: empleados + equipos + usuarios
+              |-- DeveloperView.tsx <- developer: proyectos propios + bitacora
+              `-- ReaderView.tsx    <- reader: reportes + trabajadores + bitacora
 
 ================================================================================
 PARTE 2 - GUIA DE INSTALACION
@@ -336,8 +184,6 @@ PARTE 2 - GUIA DE INSTALACION
 2.1 REQUISITOS PREVIOS
 --------------------------------------------------------------------------------
 
-Verificar antes de comenzar ejecutando cada comando en la terminal:
-
   node --version          -> debe mostrar v22.x.x
   npm --version           -> debe mostrar v10.x.x
   docker --version        -> debe mostrar v4.x o superior
@@ -345,2333 +191,332 @@ Verificar antes de comenzar ejecutando cada comando en la terminal:
   git --version           -> cualquier version reciente
 
 --------------------------------------------------------------------------------
-2.2 INSTALACION DE SOFTWARE BASE
---------------------------------------------------------------------------------
-
-Node.js v22 LTS: descargar desde https://nodejs.org
-Docker Desktop:  descargar desde https://www.docker.com/products/docker-desktop
-Git:             descargar desde https://git-scm.com/downloads
-
-Durante la instalacion de Docker Desktop, activar "Use WSL 2 based engine"
-si el equipo tiene Windows Home.
-
---------------------------------------------------------------------------------
-2.3 ACTIVAR WSL 2 (SOLO WINDOWS HOME)
---------------------------------------------------------------------------------
-
-Abrir PowerShell como Administrador y ejecutar en orden:
-
-  wsl --install
-  wsl --set-default-version 2
-  wsl --update
-
-Reiniciar el equipo. Luego en Docker Desktop:
-  Settings > General > activar "Use the WSL 2 based engine"
-  Settings > Resources > WSL Integration > activar distribucion Linux
-  Apply & Restart
-
-Verificar: wsl --status  (debe decir "Default Version: 2")
-
---------------------------------------------------------------------------------
 2.4 ARCHIVOS .env (CRITICO)
 --------------------------------------------------------------------------------
 
-Los .env NO se suben a Git. Crearlos manualmente en cada maquina.
-Las comillas dobles son OBLIGATORIAS en DATABASE_URL.
-Las credenciales deben coincidir EXACTAMENTE con el docker-compose.yml.
+--- .env (raiz del proyecto) ---
+VITE_BFF_URL=http://localhost
+JWT_SECRET=<generado con el comando PowerShell>
 
---- bff-gateway/.env ---
-PORT=3000
-MS_TASKS_URL=http://localhost:3001
-MS_PROJECTS_URL=http://localhost:3002
-MS_TEAMS_URL=http://localhost:3003
-JWT_SECRET=innovatech-secret-key-2026
+Generar con PowerShell:
+  $bytes = New-Object byte[] 64
+  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $secret = [System.BitConverter]::ToString($bytes) -replace '-', ''
+  "VITE_BFF_URL=http://localhost`nJWT_SECRET=$secret" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
 
 --- ms-projects/.env ---
 DATABASE_URL="postgresql://user_projects:password_projects@localhost:5434/db_projects"
 PORT=3002
 MS_TASKS_URL=http://localhost:3001
-JWT_SECRET=innovatech-secret-key-2026
+JWT_SECRET=<mismo que el raiz>
 
 --- ms-tasks/.env ---
 DATABASE_URL="postgresql://johndoe:randompassword@localhost:5433/db_tasks"
 PORT=3001
-JWT_SECRET=innovatech-secret-key-2026
+JWT_SECRET=<mismo que el raiz>
 
 --- ms-teams/.env ---
 DATABASE_URL="postgresql://user_teams:password_teams@localhost:5435/db_teams"
 PORT=3003
-JWT_SECRET=innovatech-secret-key-2026
+JWT_SECRET=<mismo que el raiz>
 
-NOTA: Las URLs en los .env apuntan a localhost (desarrollo local).
-Dentro de Docker las URLs cambian a nombres de contenedor via docker-compose.yml.
+--- bff-gateway/.env ---
+BFF_DATABASE_URL="postgresql://user_bff:password_bff@localhost:5436/db_bff"
+PORT=3000
+MS_TASKS_URL=http://localhost:3001
+MS_PROJECTS_URL=http://localhost:3002
+MS_TEAMS_URL=http://localhost:3003
+JWT_SECRET=<mismo que el raiz>
 
---------------------------------------------------------------------------------
-2.5 ARCHIVOS tsconfig.json
---------------------------------------------------------------------------------
-
-El mismo archivo aplica para los cuatro servicios:
-
-{
-  "compilerOptions": {
-    "rootDir": "./src",
-    "outDir": "./dist",
-    "module": "commonjs",
-    "target": "es2020",
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
-  },
-  "exclude": ["node_modules", "dist", "prisma.config.ts"]
-}
-
-NO usar: "module": "nodenext", "verbatimModuleSyntax": true, "target": "esnext"
-Causa errores de imports incompatibles con CommonJS.
+NOTA: Los .env locales se usan para migraciones desde la maquina host.
+      Dentro de Docker, las URLs cambian a nombres de contenedor (docker-compose.yml).
+      El JWT_SECRET DEBE ser el mismo en todos los servicios.
 
 --------------------------------------------------------------------------------
-2.6 DOCKERFILES (con HEALTHCHECK para Swarm)
+2.11 DOCKER-COMPOSE.YML - CAMBIOS RESPECTO A VERSION ANTERIOR
 --------------------------------------------------------------------------------
 
-El HEALTHCHECK permite que Docker Swarm sepa si un contenedor esta listo para
-recibir trafico. Si falla 3 veces, Swarm lo marca "unhealthy" y lanza uno nuevo.
-
---- Dockerfile para ms-tasks (puerto 3001) ---
-FROM node:22-alpine
-RUN apk add --no-cache openssl
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npx prisma generate
-RUN npm run build
-EXPOSE 3001
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -q -O- http://localhost:3001/health || exit 1
-CMD ["node", "dist/app.js"]
-
---- Dockerfile para ms-projects (puerto 3002) ---
-  (igual al anterior cambiando EXPOSE y HEALTHCHECK a puerto 3002)
-
---- Dockerfile para ms-teams (puerto 3003) ---
-  (igual al anterior cambiando EXPOSE y HEALTHCHECK a puerto 3003)
-
---- Dockerfile para bff-gateway (NO usa Prisma) ---
-FROM node:22-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install --include=dev
-COPY . .
-RUN npm run build
-EXPOSE 3000
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -q -O- http://localhost:3000/health || exit 1
-CMD ["node", "dist/app.js"]
-
---- Dockerfile para ms-monitor (puerto 4000) ---
-FROM node:22-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-EXPOSE 4000
-CMD ["node", "dist/app.js"]
-
-NOTAS CRITICAS:
-- "RUN apk add --no-cache openssl" es OBLIGATORIO en microservicios con Prisma.
-  Sin esta linea ocurre el error "libssl.so.1.1: No such file or directory".
-- El BFF usa "npm install --include=dev" para incluir TypeScript dentro de Docker.
-- El BFF NO necesita openssl ni prisma generate.
-- HEALTHCHECK usa wget (disponible en alpine). El --start-period=30s da tiempo
-  para que el servicio y la BD arranquen antes de empezar a evaluar la salud.
-- Swarm solo reemplaza tareas "unhealthy"; una tarea que "falla" (exit code != 0)
-  se reinicia por restart_policy, independiente del HEALTHCHECK.
+Cambios en v7.0:
+  - Nuevo servicio db-bff (postgres:15, puerto 5436) con healthcheck y volumen
+  - Servicio bff ahora tiene command: sh -c "npx prisma migrate deploy && node dist/app.js"
+  - Servicio bff depende de db-bff con condition: service_healthy
+  - Nueva variable BFF_DATABASE_URL en el servicio bff
+  - JWT_SECRET viene de ${JWT_SECRET} (archivo .env de la raiz)
+  - Todos los db-* tienen healthchecks con pg_isready
+  - Todos los ms-* tienen command con prisma migrate deploy
+  - Todos los db-* tienen volumenes persistentes (datos sobreviven reinicios)
+  - Nueva seccion volumes con db-tasks-data, db-projects-data, db-teams-data, db-bff-data
 
 --------------------------------------------------------------------------------
-2.7 ARCHIVO .dockerignore (OBLIGATORIO EN TODOS)
+2.15 EJECUTAR MIGRACIONES
 --------------------------------------------------------------------------------
 
-Sin este archivo Docker copia el node_modules local al contenedor y pisa la
-instalacion de dependencias, causando "sh: tsc: not found" y
-"sh: prisma: not found" aunque esten declarados en el package.json.
+PRIMERA VEZ (o despues de docker compose down -v):
 
-Crear .dockerignore en la raiz de CADA microservicio y el BFF con este contenido:
+  # Levantar solo las BDs
+  docker compose up -d db-tasks db-projects db-teams db-bff
 
-  node_modules
-  dist
-  .env
+  # Esperar 10 segundos
 
---------------------------------------------------------------------------------
-2.8 PACKAGE.JSON DE CADA SERVICIO
---------------------------------------------------------------------------------
+  # Migrar cada microservicio
+  cd ms-teams    && npx prisma migrate dev --name "init"
+  cd ../ms-projects && npx prisma migrate dev --name "init"
+  cd ../ms-tasks    && npx prisma migrate dev --name "init"
+  cd ../bff-gateway && npx prisma migrate dev --name "init_users"
+  cd ..
 
---- package.json para ms-projects, ms-tasks, ms-teams ---
-{
-  "name": "nombre-del-servicio",
-  "version": "1.0.0",
-  "main": "dist/app.js",
-  "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
-    "build": "tsc",
-    "start": "node dist/app.js"
-  },
-  "dependencies": {
-    "@prisma/client": "5.22.0",
-    "axios": "^1.7.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.0",
-    "express": "^4.19.2",
-    "jsonwebtoken": "^9.0.2",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.0"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "^22.0.0",
-    "prisma": "5.22.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.0"
-  }
-}
+AUTOMATICO (en levantar el servicio):
+  El docker-compose.yml ejecuta npx prisma migrate deploy al iniciar cada
+  microservicio. Esto aplica migraciones pendientes sin intervencion manual.
 
---- package.json para bff-gateway ---
-{
-  "name": "bff-gateway",
-  "version": "1.0.0",
-  "main": "dist/app.js",
-  "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
-    "build": "tsc",
-    "start": "node dist/app.js"
-  },
-  "dependencies": {
-    "axios": "^1.7.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.0",
-    "express": "^4.19.2",
-    "jsonwebtoken": "^9.0.2",
-    "opossum": "^9.0.0",
-    "swagger-jsdoc": "^6.3.0",
-    "swagger-ui-express": "^5.0.1",
-    "typescript": "^5.4.0"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "^22.0.0",
-    "@types/opossum": "^8.1.9",
-    "ts-node-dev": "^2.0.0"
-  }
-}
-
-NOTAS CRITICAS:
-- Prisma fijado en "5.22.0" SIN el simbolo ^ (evita actualizacion automatica a v6).
-- jsonwebtoken en dependencies de TODOS los servicios (incluido BFF).
-- opossum y @types/opossum solo en bff-gateway (Circuit Breaker).
-- TypeScript en devDependencies del BFF; el Dockerfile usa --include=dev.
+DIFERENCIA:
+  migrate dev    -> interactivo, crea nuevos archivos de migracion (desarrollo)
+  migrate deploy -> aplica migraciones existentes, no interactivo (produccion/Docker)
 
 --------------------------------------------------------------------------------
-2.9 INSTALAR DEPENDENCIAS
+2.17 COMANDOS DEL DIA A DIA
 --------------------------------------------------------------------------------
 
-  cd ms-tasks       && npm install && npx prisma generate
-  cd ../ms-projects && npm install && npx prisma generate
-  cd ../ms-teams    && npm install && npx prisma generate
-  cd ../bff-gateway && npm install
-
-NOTA: El BFF no necesita "npx prisma generate" porque no tiene schema.prisma.
-
---------------------------------------------------------------------------------
-2.10 VERIFICAR COMPILACION LOCAL
---------------------------------------------------------------------------------
-
-Antes de dockerizar, verificar que cada servicio compila sin errores:
-
-  cd ms-tasks       && npm run build
-  cd ../ms-projects && npm run build
-  cd ../ms-teams    && npm run build
-  cd ../bff-gateway && npm run build
-
-En TypeScript, silencio absoluto = exito. Si hay errores los lista con
-el archivo y numero de linea exactos.
-
---------------------------------------------------------------------------------
-2.11 DOCKER-COMPOSE.YML COMPLETO
---------------------------------------------------------------------------------
-
-services:
-
-  db-tasks:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: johndoe
-      POSTGRES_PASSWORD: randompassword
-      POSTGRES_DB: db_tasks
-    ports:
-      - "5433:5432"
-    networks:
-      - innovatech-network
-
-  db-projects:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: user_projects
-      POSTGRES_PASSWORD: password_projects
-      POSTGRES_DB: db_projects
-    ports:
-      - "5434:5432"
-    networks:
-      - innovatech-network
-
-  db-teams:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: user_teams
-      POSTGRES_PASSWORD: password_teams
-      POSTGRES_DB: db_teams
-    ports:
-      - "5435:5432"
-    networks:
-      - innovatech-network
-
-  ms-tasks:
-    build: ./ms-tasks
-    restart: always
-    ports:
-      - "3001:3001"
-    environment:
-      DATABASE_URL: postgresql://johndoe:randompassword@db-tasks:5432/db_tasks
-      PORT: 3001
-      JWT_SECRET: innovatech-secret-key-2026
-    depends_on:
-      - db-tasks
-    networks:
-      - innovatech-network
-
-  ms-projects:
-    build: ./ms-projects
-    restart: always
-    ports:
-      - "3002:3002"
-    environment:
-      DATABASE_URL: postgresql://user_projects:password_projects@db-projects:5432/db_projects
-      PORT: 3002
-      MS_TASKS_URL: http://ms-tasks:3001
-      JWT_SECRET: innovatech-secret-key-2026
-    depends_on:
-      - db-projects
-    networks:
-      - innovatech-network
-
-  ms-teams:
-    build: ./ms-teams
-    restart: always
-    ports:
-      - "3003:3003"
-    environment:
-      DATABASE_URL: postgresql://user_teams:password_teams@db-teams:5432/db_teams
-      PORT: 3003
-      JWT_SECRET: innovatech-secret-key-2026
-    depends_on:
-      - db-teams
-    networks:
-      - innovatech-network
-
-  bff:
-    build: ./bff-gateway
-    restart: always
-    ports:
-      - "3000:3000"
-    environment:
-      PORT: 3000
-      MS_TASKS_URL: http://ms-tasks:3001
-      MS_PROJECTS_URL: http://ms-projects:3002
-      MS_TEAMS_URL: http://ms-teams:3003
-      JWT_SECRET: innovatech-secret-key-2026
-    depends_on:
-      - ms-tasks
-      - ms-projects
-      - ms-teams
-    networks:
-      - innovatech-network
-
-networks:
-  innovatech-network:
-    driver: bridge
-
-CONCEPTOS CLAVE:
-  - JWT_SECRET en TODOS los servicios para que Zero Trust funcione.
-  - MS_TASKS_URL: http://ms-tasks:3001 usa el nombre del contenedor, NO localhost.
-    Dentro de Docker, localhost apunta al mismo contenedor, no a otro servicio.
-  - depends_on garantiza el orden de arranque, por eso las migraciones
-    se ejecutan por separado despues de levantar el sistema.
-  - Los microservicios NO tienen puertos expuestos al host. El acceso es solo
-    via Traefik (puerto 80) o ms-monitor internamente.
-
---------------------------------------------------------------------------------
-2.12 TRAEFIK - LOAD BALANCER (traefik/dynamic.yml)
---------------------------------------------------------------------------------
-
-Traefik usa "file provider": lee su configuracion de un archivo estatico en vez
-de preguntar al Docker daemon. Esto es necesario en Windows Docker Desktop
-porque el Docker socket no es accesible desde contenedores.
-
-Archivo traefik/dynamic.yml:
-  http:
-    routers:
-      bff:
-        rule: "PathPrefix(`/`)"
-        entryPoints:
-          - web
-        service: bff-service
-    services:
-      bff-service:
-        loadBalancer:
-          servers:
-            - url: "http://bff:3000"
-          healthCheck:
-            path: /health
-            interval: "10s"
-            timeout: "3s"
-
-Explicacion:
-  - Todo el trafico que llega al puerto 80 se envia al servicio bff-service.
-  - bff-service apunta a http://bff:3000 (DNS interno de Docker).
-  - En Swarm, "bff" resuelve al VIP del servicio, que distribuye entre replicas.
-  - healthCheck verifica /health cada 10s; si falla, Traefik deja de enviar
-    trafico a esa instancia.
-
-En docker-compose.yml, el volumen de Traefik:
-  volumes:
-    - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
-
-En docker-stack.yml, Traefik usa Docker Config (el archivo se sube al Swarm):
-  configs:
-    - source: traefik-dynamic
-      target: /etc/traefik/dynamic.yml
-
---------------------------------------------------------------------------------
-2.13 MS-MONITOR - SERVICIO DE MONITOREO
---------------------------------------------------------------------------------
-
-Microservicio propio (puerto 4000) que consulta /health de los 4 servicios
-(ms-tasks, ms-projects, ms-teams, bff-gateway) cada 15 segundos.
-
-Endpoints:
-  GET /          -> Dashboard HTML con tabla de estado, se autoactualiza cada 15s
-  GET /status    -> JSON con el estado de todos los servicios
-  GET /health    -> Health check del propio ms-monitor
-
-Variables de entorno usadas:
-  MS_TASKS_URL    = http://ms-tasks:3001
-  MS_PROJECTS_URL = http://ms-projects:3002
-  MS_TEAMS_URL    = http://ms-teams:3003
-  BFF_URL         = http://bff:3000
-  PORT            = 4000
-
-Acceder en: http://localhost:4000
-
---------------------------------------------------------------------------------
-2.14 LEVANTAR EL SISTEMA (Docker Compose - desarrollo)
---------------------------------------------------------------------------------
-
-Primer levantamiento o cuando hay cambios en el codigo:
-  docker compose up --build
-
-Con escalado del BFF (3 instancias, load balancing via Traefik):
-  docker compose up --build --scale bff=3
-
-Si el cache de Docker interfiere con los cambios:
-  docker compose build --no-cache
-  docker compose up
-
-Levantar en segundo plano (modo detached):
-  docker compose up -d --build
-
-Detener todos los servicios:
-  docker compose down
-
-Resultado esperado cuando todo esta bien:
-  ms-tasks-1     | MS-TASKS corriendo en puerto 3001
-  ms-projects-1  | MS-PROJECTS corriendo en http://localhost:3002
-  ms-teams-1     | MS-TEAMS corriendo en http://localhost:3003
-  bff-1          | BFF-GATEWAY corriendo en http://localhost:3000
-  bff-1          | Swagger Unificado disponible en http://localhost:3000/api-docs
-  bff-1          | Autenticacion JWT activada
-
-URLs disponibles:
-  Frontend:          http://localhost:5173
-  API (via Traefik): http://localhost
-  BFF Swagger:       http://localhost/api-docs  (o http://localhost:3000/api-docs con --scale bff=1)
-  Monitor:           http://localhost:4000
-  Traefik dashboard: http://localhost:8080
-
---------------------------------------------------------------------------------
-2.15 LEVANTAR EL SISTEMA (Docker Swarm - produccion)
---------------------------------------------------------------------------------
-
-Docker Swarm requiere imagenes pre-construidas (no usa "build:"). Por eso
-primero se construyen con docker compose y luego se despliegan con el stack.
-
-OPCION A: Script automatico (recomendado)
-  .\deploy-swarm.ps1
-
-  Flags disponibles:
-    .\deploy-swarm.ps1 -Rebuild    <- fuerza rebuild de imagenes antes de desplegar
-    .\deploy-swarm.ps1 -Down       <- elimina el stack del Swarm
-
-OPCION B: Comandos manuales
-  1. Inicializar Swarm (solo la primera vez):
-     docker swarm init --advertise-addr 127.0.0.1
-
-  2. Construir imagenes:
-     docker compose build
-
-  3. Registrar config de Traefik en el Swarm:
-     docker config create traefik-dynamic ./traefik/dynamic.yml
-
-  4. Desplegar el stack:
-     docker stack deploy -c docker-stack.yml innovatech
-
-  5. Ver estado:
-     docker stack services innovatech
-
-Resultado esperado (todos los servicios con replicas deseadas/activas):
-  NAME                     REPLICAS   IMAGE
-  innovatech_bff           3/3        innovatech-bff:latest
-  innovatech_traefik       1/1        traefik:v3.0
-  innovatech_ms-tasks      1/1        innovatech-ms-tasks:latest
-  innovatech_ms-projects   1/1        innovatech-ms-projects:latest
-  innovatech_ms-teams      1/1        innovatech-ms-teams:latest
-  innovatech_ms-monitor    1/1        innovatech-ms-monitor:latest
-  innovatech_frontend      1/1        innovatech-frontend:latest
-  innovatech_db-tasks      1/1        postgres:15
-  innovatech_db-projects   1/1        postgres:15
-  innovatech_db-teams      1/1        postgres:15
-
-COMANDOS UTILES EN SWARM:
-  docker stack services innovatech           -> estado de todos los servicios
-  docker stack ps innovatech                 -> ver todas las tareas (replicas)
-  docker service ps innovatech_bff           -> ver replicas del BFF
-  docker service logs -f innovatech_bff      -> logs del BFF en tiempo real
-  docker service scale innovatech_bff=5      -> escalar BFF a 5 replicas
-  docker service update --image innovatech-bff:latest innovatech_bff  <- rolling update
-  docker stack rm innovatech                 -> eliminar el stack
-
-NOTA: Al eliminar el stack con docker stack rm, los volumes con datos de
-PostgreSQL se conservan. Para borrar tambien los datos:
-  docker volume rm innovatech_db-tasks-data innovatech_db-projects-data innovatech_db-teams-data
-
---------------------------------------------------------------------------------
-2.16 EJECUTAR MIGRACIONES
---------------------------------------------------------------------------------
-
-Las migraciones crean las tablas en PostgreSQL segun el schema.prisma.
-REQUISITO: Las bases de datos deben estar corriendo antes de migrar.
-CRITICO: Sin migraciones el sistema falla con "table does not exist" o
-         "socket hang up" cuando el BFF intenta consultar datos.
-
-Con Docker Compose (BD expuesta en localhost:5433/5434/5435):
-  cd ms-tasks       && npx prisma migrate dev --name init
-  cd ../ms-projects && npx prisma migrate dev --name init
-  cd ../ms-teams    && npx prisma migrate dev --name init
-
-Con Docker Swarm (BD NO expuesta al host, ejecutar dentro del contenedor):
-  docker exec -it $(docker ps -qf name=innovatech_ms-tasks) npx prisma migrate dev --name init
-  docker exec -it $(docker ps -qf name=innovatech_ms-projects) npx prisma migrate dev --name init
-  docker exec -it $(docker ps -qf name=innovatech_ms-teams) npx prisma migrate dev --name init
-
-Resultado esperado para cada migracion:
-  Prisma schema loaded from prisma\schema.prisma
-  Applying migration `20260518_init`
-  Database changes applied.
-
-DIFERENCIA ENTRE GENERATE Y MIGRATE:
-  npx prisma generate   -> Crea los tipos TypeScript desde el schema.
-                           Necesario para que el codigo compile.
-  npx prisma migrate    -> Crea o actualiza las tablas en PostgreSQL.
-                           Necesario para que los datos se guarden.
-  Ambos son obligatorios. Si solo haces generate sin migrate, el
-  codigo compila pero falla al intentar acceder a la base de datos.
-
---------------------------------------------------------------------------------
-2.17 VERIFICAR FUNCIONAMIENTO
---------------------------------------------------------------------------------
-
-Con Docker Compose:
-  BFF Swagger:   http://localhost:3000/api-docs
-  Monitor:       http://localhost:4000
-  Traefik:       http://localhost:8080
-
-Con Docker Swarm (todo via Traefik puerto 80):
-  BFF Swagger:       http://localhost/api-docs
-  Monitor:           http://localhost:4000
-  Traefik dashboard: http://localhost:8080
-  Frontend:          http://localhost:5173
-
-Prueba Zero Trust - sin token debe retornar 401:
-  CMD:     curl.exe http://localhost/api/projects
-  Resultado: {"error":"Acceso denegado. Token requerido."}
-
-Prueba de load balancing (/whoami cambia hostname entre replicas):
-  CMD:     curl.exe http://localhost/whoami
-  Resultado: {"hostname":"abc123...","service":"bff-gateway",...}
-
---------------------------------------------------------------------------------
-2.18 COMANDOS DEL DIA A DIA
---------------------------------------------------------------------------------
-
-DOCKER COMPOSE (desarrollo):
   docker compose ps                    -> estado de todos los contenedores
-  docker compose logs -f               -> logs en tiempo real de todo
-  docker compose logs -f ms-projects   -> logs de un servicio especifico
-  docker compose restart ms-projects   -> reiniciar sin detener todo
-  docker compose stop ms-tasks         -> detener un servicio (simula caida)
-  docker compose start ms-tasks        -> volver a levantar un servicio
-  docker compose down -v               -> detener y BORRAR bases de datos (CUIDADO)
-  docker ps                            -> ver TODOS los contenedores Docker
-  npx prisma studio                    -> interfaz visual para ver datos en BD
+  docker compose logs -f               -> logs en tiempo real
+  docker compose logs bff -f           -> logs del BFF
+  docker compose restart bff           -> reiniciar BFF (resetea circuit breakers)
+  docker compose down                  -> detener conservando datos
+  docker compose down -v               -> detener y BORRAR bases de datos
+  docker compose up --build frontend   -> reconstruir solo el frontend
 
-DOCKER SWARM (produccion):
-  docker stack services innovatech              -> estado de los servicios
-  docker stack ps innovatech                    -> ver todas las replicas
-  docker service ps innovatech_bff              -> ver replicas del BFF
-  docker service logs -f innovatech_bff         -> logs en tiempo real
-  docker service scale innovatech_bff=5         -> escalar a 5 replicas
-  docker service update --image X innovatech_Y  -> rolling update de imagen
-  docker stack rm innovatech                    -> eliminar el stack
-  .\deploy-swarm.ps1 -Down                      -> script que elimina el stack
-
---------------------------------------------------------------------------------
-2.19 ERRORES COMUNES Y SOLUCIONES
---------------------------------------------------------------------------------
-
-ERROR: sh: tsc: not found / sh: prisma: not found (Docker)
-  Causa:    Falta .dockerignore. Docker copia node_modules local y pisa la
-            instalacion del contenedor.
-  Solucion: Crear .dockerignore en cada servicio con: node_modules / dist / .env
-            Luego ejecutar: docker compose build --no-cache
-
-ERROR: Authentication failed against database server
-  Causa:    Credenciales del .env no coinciden con las del docker-compose.yml.
-  Solucion: Verificar .env contra la tabla de credenciales de la seccion 2.4.
-
-ERROR: Environment variable not found: DATABASE_URL
-  Causa:    Faltan comillas dobles en el .env.
-  Solucion: DATABASE_URL="postgresql://..." (comillas dobles OBLIGATORIAS)
-
-ERROR: The table 'public.Project' does not exist
-  Causa:    Migraciones no ejecutadas en esta sesion.
-  Solucion: Ejecutar las tres migraciones de la seccion 2.13.
-
-ERROR: libssl.so.1.1 not found (Docker)
-  Causa:    node:22-alpine no incluye OpenSSL que Prisma necesita.
-  Solucion: Agregar al Dockerfile de cada microservicio con Prisma:
-    RUN apk add --no-cache openssl
-
-ERROR: Bind for 0.0.0.0:5435 failed: port is already allocated
-  Causa:    Un contenedor Docker de OTRO proyecto ocupa el puerto.
-  Solucion: docker ps -> identificar el contenedor conflictivo -> docker stop ID
-
-ERROR: socket hang up (en BFF)
-  Causa:    El BFF llega al microservicio pero la BD no tiene tablas (migraciones
-            pendientes) o el JWT_SECRET no esta configurado en el microservicio.
-  Solucion: Ejecutar migraciones y verificar JWT_SECRET en docker-compose.yml.
-
-ERROR: Request failed with status code 401 (desde BFF a microservicio)
-  Causa:    El BFF no esta reenviando el token JWT en las llamadas axios.
-  Solucion: Verificar que el authHeaders helper esta siendo usado en cada
-            llamada axios de los services del BFF.
-
-ERROR: Cannot find module '../services/...'
-  Causa:    Nombres de carpetas no coinciden con los imports.
-  Solucion: Verificar que las carpetas se llaman services (plural), factories, etc.
-
-ERROR: ECMAScript imports cannot be written in CommonJS file
-  Causa:    tsconfig.json tiene configuracion incorrecta.
-  Solucion: En tsconfig.json usar "module": "commonjs" y "target": "es2020".
-            Eliminar "verbatimModuleSyntax" completamente.
-
-ERROR: GET /tasks/:id atrapa /tasks/project/:projectId
-  Causa:    Orden incorrecto de rutas en app.ts.
-  Solucion: La ruta especifica SIEMPRE debe ir antes de la generica:
-    app.get('/tasks/project/:projectId', ...)  <- primero
-    app.get('/tasks/:id', ...)                 <- despues
-
-ERROR: No se puede marcar como finalizado (sigue fallando)
-  Causa:    ms-projects usa 'http://localhost:3001' dentro de Docker.
-            Localhost apunta al propio contenedor, no a ms-tasks.
-  Solucion: Usar la variable de entorno MS_TASKS_URL en project.service.ts:
-    const MS_TASKS_URL = process.env.MS_TASKS_URL || 'http://ms-tasks:3001';
-
-================================================================================
-PARTE 3 - GUIA DE PRUEBAS
-================================================================================
-
---------------------------------------------------------------------------------
-3.1 REQUISITOS PARA LAS PRUEBAS
---------------------------------------------------------------------------------
-
-Antes de comenzar las pruebas, verificar que el sistema esta corriendo:
+  # Generar nuevo JWT_SECRET (invalida sesiones activas)
+  $bytes = New-Object byte[] 64
+  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $secret = [System.BitConverter]::ToString($bytes) -replace '-', ''
+  "VITE_BFF_URL=http://localhost`nJWT_SECRET=$secret" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
   docker compose up --build
 
-Y que las migraciones estan ejecutadas (se hace UNA vez por instalacion):
-  cd ms-tasks    && npx prisma migrate dev --name init
-  cd ms-projects && npx prisma migrate dev --name init
-  cd ms-teams    && npx prisma migrate dev --name init
-
-Resultado esperado en la terminal de Docker:
-  ms-tasks-1     | MS-TASKS corriendo en puerto 3001
-  ms-projects-1  | MS-PROJECTS corriendo en http://localhost:3002
-  ms-teams-1     | MS-TEAMS corriendo en http://localhost:3003
-  bff-1          | BFF-GATEWAY corriendo en http://localhost:3000
-  bff-1          | Autenticacion JWT activada
-
-URLs de Swagger disponibles:
-  BFF Unificado: http://localhost:3000/api-docs  <- recomendado para pruebas
-  MS-Tasks:      http://localhost:3001/api-docs
-  MS-Projects:   http://localhost:3002/api-docs
-  MS-Teams:      http://localhost:3003/api-docs
-
 --------------------------------------------------------------------------------
-3.2 COMO USAR SWAGGER UI
+2.18 ERRORES COMUNES Y SOLUCIONES
 --------------------------------------------------------------------------------
 
-Swagger es la interfaz visual para probar endpoints directamente desde el
-navegador. El BFF tiene un Swagger unificado que consolida los tres servicios.
+ERROR: Circuit breaker activo - employees no se crean (fallback 201 con error)
+  Causa:    El circuit breaker se abrio por fallos previos.
+  Solucion: docker compose restart bff
 
-Pasos para probar un endpoint:
-  1. Abrir la URL en el navegador (ej: http://localhost:3000/api-docs).
-  2. Hacer clic en el boton "Authorize" (candado superior derecho).
-  3. En el campo "bearerAuth" ingresar el token JWT.
-  4. Hacer clic en "Authorize" y luego "Close".
-  5. Expandir el endpoint a probar y hacer clic en "Try it out".
-  6. Completar el body si es necesario y hacer clic en "Execute".
-  7. Ver la respuesta en la seccion "Responses".
+ERROR: El dropdown de empleados aparece vacio (304 Not Modified)
+  Causa:    El navegador cacheo la respuesta anterior.
+  Solucion: Ctrl+Shift+R (hard reload del navegador)
+  Solucion permanente: app.set('etag', false) en bff-gateway/src/app.ts (ya aplicado)
 
---------------------------------------------------------------------------------
-3.3 COMO USAR CMD (curl.exe)
---------------------------------------------------------------------------------
+ERROR: 401 en todas las requests tras reiniciar Docker
+  Causa:    JWT_SECRET cambio. Tokens anteriores son invalidos.
+  Solucion: Hacer logout y login nuevamente. Es comportamiento esperado.
 
-En Windows SIEMPRE usar "curl.exe" (no "curl"). PowerShell intercepta "curl"
-y lo convierte en Invoke-WebRequest con sintaxis diferente.
+ERROR: Developer no ve proyectos
+  Causa:    El developer no esta agregado como miembro a ningun equipo,
+            o el equipo no tiene un proyecto asignado.
+  Solucion: Admin -> Equipos -> agregar al developer como miembro.
+            Admin -> Proyectos -> asignar equipo al proyecto.
 
-GET:
-  curl.exe -H "Authorization: Bearer TOKEN" URL
+ERROR: "relation does not exist"
+  Causa:    Migraciones no ejecutadas.
+  Solucion: Ejecutar migraciones de la seccion 2.15.
 
-POST:
-  curl.exe -X POST URL -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"key\": \"value\"}"
+ERROR: BFF_DATABASE_URL not found
+  Causa:    El .env de bff-gateway no tiene BFF_DATABASE_URL.
+  Solucion: Agregar la variable segun la seccion 2.4.
 
-PATCH:
-  curl.exe -X PATCH URL -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"key\": \"value\"}"
-
-DELETE:
-  curl.exe -X DELETE -H "Authorization: Bearer TOKEN" URL
-
-Nota: En CMD las comillas dentro del body se escapan con backslash: \"
+================================================================================
+PARTE 3 - ROLES Y FUNCIONALIDADES DEL FRONTEND
+================================================================================
 
 --------------------------------------------------------------------------------
-3.4 COMO USAR POWERSHELL (Invoke-WebRequest)
+3.1 VISTA ADMIN
 --------------------------------------------------------------------------------
 
-Usar siempre -UseBasicParsing para evitar advertencias de seguridad.
-El body usa comillas simples afuera y dobles adentro.
+EMPLEADOS (en Equipos -> Gestionar Empleados):
+  - Campos: primer nombre, segundo nombre, apellido paterno, apellido materno,
+            RUT (con formato automatico xx.xxx.xxx-x), cargo, fecha contratacion,
+            clave usuario
+  - Al crear empleado se crea automaticamente un usuario en la BD del BFF
+  - Username = RUT del empleado
+  - El ID del empleado es visible en la lista (para referencia)
+  - Al eliminar empleado sus migraciones como miembro en equipos se borran en cascada
 
-GET:
-  Invoke-WebRequest -Uri "URL" -Method GET -Headers @{Authorization="Bearer TOKEN"} -UseBasicParsing
+EQUIPOS:
+  - Crear equipo con nombre, descripcion, area, lider (dropdown de empleados)
+  - Agregar integrantes al momento de crear (selector de empleado + rol)
+  - El lider se agrega automaticamente como miembro con rol "Tech Lead"
+  - Cada equipo muestra su ID unico
+  - Activar/desactivar equipos
+  - Agregar/eliminar miembros despues de crear
 
-POST:
-  Invoke-WebRequest -Uri "URL" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer TOKEN"} -Body '{"key": "value"}' -UseBasicParsing
+PROYECTOS:
+  - Crear proyecto con nombre, descripcion, area, equipo asignado (opcional)
+  - Busqueda por nombre o ID en tiempo real
+  - Cambiar estado desde la card (PLANNED, IN_PROGRESS, COMPLETED, ON_HOLD, CANCELLED)
+  - Asignar o reasignar equipo desde la card
+  - Cada proyecto muestra su ID
 
-PATCH:
-  Invoke-WebRequest -Uri "URL" -Method PATCH -ContentType "application/json" -Headers @{Authorization="Bearer TOKEN"} -Body '{"key": "value"}' -UseBasicParsing
-
-DELETE:
-  Invoke-WebRequest -Uri "URL" -Method DELETE -Headers @{Authorization="Bearer TOKEN"} -UseBasicParsing
-
-TRUCO: Guardar el token en variable para no copiarlo manualmente cada vez:
-  $response = Invoke-WebRequest -Uri "http://localhost:3000/auth/login" -Method POST -ContentType "application/json" -Body '{"apiKey": "admin-key-innovatech"}' -UseBasicParsing
-  $token = ($response.Content | ConvertFrom-Json).token
-  (usar $token en los comandos siguientes)
-
---------------------------------------------------------------------------------
-3.5 AUTENTICACION JWT - GENERAR Y USAR TOKENS
---------------------------------------------------------------------------------
-
-El sistema implementa Zero Trust: TODOS los endpoints requieren JWT valido,
-tanto en el BFF (puerto 3000) como en cada microservicio directamente.
-La unica excepcion es POST /auth/login.
-
-API Keys disponibles:
-  "admin-key-innovatech"  -> rol admin  (GET, POST, PATCH, DELETE)
-  "reader-key-innovatech" -> rol reader (solo GET)
-
---- GENERAR TOKEN (POST /auth/login) ---
-
-CMD:
-  curl.exe -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" -d "{\"apiKey\": \"admin-key-innovatech\"}"
-
-PowerShell (guardando en variable):
-  $response = Invoke-WebRequest -Uri "http://localhost:3000/auth/login" -Method POST -ContentType "application/json" -Body '{"apiKey": "admin-key-innovatech"}' -UseBasicParsing
-  $token = ($response.Content | ConvertFrom-Json).token
-
-Resultado esperado (200 OK):
-  {"token":"eyJhbGci...","role":"admin","expiresIn":"24h","message":"Bienvenido, rol admin autorizado"}
-
---- SIN TOKEN -> 401 ---
-  curl.exe http://localhost:3000/api/projects
-  Resultado: {"error":"Acceso denegado. Token requerido."}
-
---- TOKEN INVALIDO -> 403 ---
-  curl.exe -H "Authorization: Bearer token-falso" http://localhost:3000/api/projects
-  Resultado: {"error":"Token invalido o expirado."}
+TAREAS:
+  - Filtrar por proyecto
+  - Crear tarea con nombre, descripcion, area, equipo, asignado a (dropdown de miembros)
+  - "Asignado a" guarda el employeeId del miembro seleccionado
+  - Cambiar estado de cualquier tarea
+  - Bitacora en cada tarea: leer, agregar y eliminar entradas
 
 --------------------------------------------------------------------------------
-3.6 PRUEBAS MS-PROJECTS (puerto 3002)
+3.2 VISTA DEVELOPER
 --------------------------------------------------------------------------------
 
-NOTA: Guardar el ID retornado al crear un proyecto para usarlo en las
-      siguientes pruebas de tareas y del circuit breaker.
+PROYECTOS:
+  - Solo ve los proyectos cuyo equipo incluye al developer como miembro
+  - Cada card muestra nombre, descripcion, estado y area
 
---- CREAR PROYECTO (POST /projects) ---
+TAREAS (dentro de un proyecto):
+  - Ve TODAS las tareas del proyecto (kanban por estado)
+  - Las tareas propias tienen borde verde y etiqueta "Mi tarea"
+  - Solo puede cambiar el estado de sus propias tareas
+  - Las tareas ajenas muestran "Solo lectura"
 
-CMD:
-  curl.exe -X POST http://localhost:3002/projects -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Proyecto Alpha\", \"description\": \"Descripcion del proyecto\"}"
+CREAR TAREA:
+  - Solo puede crear tareas en proyectos de su equipo
+  - La tarea se asigna automaticamente al developer (por employeeId)
+  - No hay campo "Asignado a" - se asigna solo
 
-PowerShell:
-  Invoke-WebRequest -Uri "http://localhost:3002/projects" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Proyecto Alpha", "description": "Descripcion del proyecto"}' -UseBasicParsing
+BITACORA:
+  - Puede ver la bitacora de TODAS las tareas del proyecto
+  - Solo puede agregar/eliminar entradas en la bitacora de SUS propias tareas
+  - Las tareas ajenas muestran la bitacora en modo solo lectura
 
-Resultado esperado (201 Created):
-  {"id":"uuid","name":"Proyecto Alpha","status":"PLANNED","createdAt":"..."}
-
-Validacion - nombre vacio -> (400) {"error": "El nombre es obligatorio"}
-Validacion - descripcion vacia -> (400) {"error": "La descripcion es obligatoria"}
-
---- OBTENER TODOS LOS PROYECTOS (GET /projects) ---
-
-CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3002/projects
-PowerShell: Invoke-WebRequest -Uri "http://localhost:3002/projects" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
-
---- OBTENER PROYECTO POR ID (GET /projects/:id) ---
-
-CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3002/projects/UUID
-ID inexistente -> (404) {"error": "Proyecto no encontrado"}
-
---- ACTUALIZAR PROYECTO (PATCH /projects/:id) ---
-
-CMD:
-  curl.exe -X PATCH http://localhost:3002/projects/UUID -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Proyecto Actualizado\"}"
-
---- CAMBIAR ESTADO (PATCH /projects/:id/status) ---
-
-Estados validos: PLANNED, IN_PROGRESS, COMPLETED, ON_HOLD, CANCELLED
-
-CMD - cambiar a IN_PROGRESS:
-  curl.exe -X PATCH http://localhost:3002/projects/UUID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"IN_PROGRESS\"}"
-
-CMD - intentar COMPLETED con tareas pendientes (debe fallar):
-  curl.exe -X PATCH http://localhost:3002/projects/UUID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
-  Resultado esperado (400): {"error": "No se puede marcar como finalizado: existen tareas pendientes"}
-
---- ELIMINAR PROYECTO (DELETE /projects/:id) ---
-
-CMD:      curl.exe -X DELETE -H "Authorization: Bearer TOKEN" http://localhost:3002/projects/UUID
-Resultado: (200) {"message": "Proyecto eliminado correctamente"}
+HEADER:
+  - Muestra nombre completo del developer
+  - Muestra su ID de empleado (referencia para el admin)
 
 --------------------------------------------------------------------------------
-3.7 PRUEBAS MS-TASKS (puerto 3001)
+3.3 VISTA READER (LECTOR)
 --------------------------------------------------------------------------------
-
-REQUISITO: Necesitas un projectId valido de MS-Projects.
-
---- CREAR TAREA (POST /tasks) ---
-
-CMD:
-  curl.exe -X POST http://localhost:3001/tasks -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Disenar arquitectura\", \"description\": \"Definir patrones\", \"area\": \"Backend\", \"assignedTo\": \"dev-001\", \"teamId\": \"team-001\", \"projectId\": \"UUID-PROYECTO\"}"
-
-PowerShell:
-  Invoke-WebRequest -Uri "http://localhost:3001/tasks" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Disenar arquitectura", "description": "Definir patrones", "area": "Backend", "assignedTo": "dev-001", "teamId": "team-001", "projectId": "UUID-PROYECTO"}' -UseBasicParsing
-
-Resultado esperado (201 Created):
-  {"id":"uuid","name":"Disenar arquitectura","status":"PENDING",...}
-
-Validacion - sin nombre -> (400) {"error": "El nombre de la tarea es obligatorio"}
-Validacion - sin projectId -> (400) {"error": "Toda tarea debe estar asociada a un Proyecto"}
-
---- OBTENER TAREA POR ID (GET /tasks/:id) ---
-
-CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3001/tasks/UUID-TAREA
-ID inexistente -> (404) {"error": "Tarea no encontrada"}
-
---- OBTENER TAREAS POR PROYECTO (GET /tasks/project/:projectId) ---
-
-CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3001/tasks/project/UUID-PROYECTO
-
---- ACTUALIZAR TAREA (PATCH /tasks/:id) ---
-
-Estados validos: PENDING, IN_PROGRESS, COMPLETED, BLOCKED
-
-CMD:
-  curl.exe -X PATCH http://localhost:3001/tasks/UUID -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
-
-PowerShell:
-  Invoke-WebRequest -Uri "http://localhost:3001/tasks/UUID" -Method PATCH -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"status": "COMPLETED"}' -UseBasicParsing
-
---- ELIMINAR TAREA (DELETE /tasks/:id) ---
-
-CMD:      curl.exe -X DELETE -H "Authorization: Bearer TOKEN" http://localhost:3001/tasks/UUID
-
---------------------------------------------------------------------------------
-3.8 PRUEBAS MS-TEAMS (puerto 3003)
---------------------------------------------------------------------------------
-
---- CREAR EQUIPO (POST /teams) ---
-
-CMD:
-  curl.exe -X POST http://localhost:3003/teams -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Equipo Backend\", \"description\": \"Equipo backend\", \"area\": \"Backend\", \"leaderId\": \"lider-001\", \"members\": [\"dev-001\", \"dev-002\"]}"
-
-Resultado esperado (201): {"id":"uuid","name":"Equipo Backend","status":"ACTIVE",...}
-Validacion - sin nombre -> (400) {"error": "El nombre es obligatorio"}
-Validacion - sin leaderId -> (400) {"error": "El ID del lider es obligatorio"}
-
---- OBTENER TODOS LOS EQUIPOS (GET /teams) ---
-
-CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3003/teams
-
---- OBTENER EQUIPO POR ID (GET /teams/:id) ---
-
-CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3003/teams/UUID
-ID inexistente -> (404) {"error": "Equipo no encontrado"}
-
---- ACTUALIZAR EQUIPO (PATCH /teams/:id) ---
-
-CMD:
-  curl.exe -X PATCH http://localhost:3003/teams/UUID -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Equipo Reforzado\"}"
-
---- CAMBIAR ESTADO (PATCH /teams/:id/status) ---
-
-Estados validos: ACTIVE, INACTIVE
-
-CMD:
-  curl.exe -X PATCH http://localhost:3003/teams/UUID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"INACTIVE\"}"
-
---- ELIMINAR EQUIPO (DELETE /teams/:id) ---
-
-CMD:      curl.exe -X DELETE -H "Authorization: Bearer TOKEN" http://localhost:3003/teams/UUID
-
---------------------------------------------------------------------------------
-3.9 PRUEBAS BFF GATEWAY (puerto 3000)
---------------------------------------------------------------------------------
-
-El BFF agrupa todas las rutas bajo /api y tiene Swagger unificado en /api-docs.
-La unica ruta publica es POST /auth/login.
-
-Rutas disponibles:
-  POST   /auth/login                    <- publica
-  GET    /api/projects
-  POST   /api/projects
-  GET    /api/projects/:id
-  PATCH  /api/projects/:id
-  PATCH  /api/projects/:id/status
-  DELETE /api/projects/:id
-  POST   /api/tasks
-  GET    /api/tasks/:id
-  GET    /api/projects/:id/tasks
-  PATCH  /api/tasks/:id
-  DELETE /api/tasks/:id
-  GET    /api/teams
-  POST   /api/teams
-  GET    /api/teams/:id
-  PATCH  /api/teams/:id
-  PATCH  /api/teams/:id/status
-  DELETE /api/teams/:id
-
---- CREAR PROYECTO VIA BFF ---
-
-CMD:
-  curl.exe -X POST http://localhost:3000/api/projects -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"name\": \"Proyecto via BFF\", \"description\": \"Creado via BFF\"}"
-
-PowerShell:
-  Invoke-WebRequest -Uri "http://localhost:3000/api/projects" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Proyecto via BFF", "description": "Creado via BFF"}' -UseBasicParsing
-
---- OBTENER PROYECTOS VIA BFF ---
-
-CMD:
-  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3000/api/projects
-
---------------------------------------------------------------------------------
-3.10 PRUEBA DEL LOAD BALANCER (Traefik + /whoami)
---------------------------------------------------------------------------------
-
-El endpoint /whoami del BFF retorna el hostname del contenedor que respondio.
-Como cada replica tiene un hostname unico, llamadas repetidas muestran hostnames
-distintos, demostrando que Traefik distribuye la carga entre replicas.
-
-REQUISITOS: Docker Compose con --scale bff=3 O Docker Swarm con 3 replicas.
-
---- DEMO CON POWERSHELL (ejecutar varias veces y comparar hostname) ---
-
-  1. Obtener token:
-     $response = Invoke-WebRequest -Uri "http://localhost/auth/login" -Method POST -ContentType "application/json" -Body '{"apiKey": "admin-key-innovatech"}' -UseBasicParsing
-     $token = ($response.Content | ConvertFrom-Json).token
-
-  2. Llamar /whoami varias veces:
-     1..5 | ForEach-Object { (Invoke-WebRequest -Uri "http://localhost/whoami" -Headers @{Authorization="Bearer $token"} -UseBasicParsing).Content }
-
-  Resultado esperado: el campo "hostname" rota entre 3 valores distintos.
-  Ejemplo:
-    {"hostname":"a1b2c3d","pid":1,"service":"bff-gateway","uptime":42}
-    {"hostname":"e4f5g6h","pid":1,"service":"bff-gateway","uptime":41}
-    {"hostname":"i7j8k9l","pid":1,"service":"bff-gateway","uptime":43}
-
---- DEMO CON CMD ---
-
-  curl.exe -H "Authorization: Bearer TOKEN" http://localhost/whoami
-  (repetir varias veces y observar como cambia el hostname)
-
---- VERIFICAR EN TRAEFIK DASHBOARD ---
-
-  1. Abrir http://localhost:8080
-  2. Ir a HTTP -> Services -> bff-service
-  3. Ver que aparecen los 3 servidores con status "UP"
-  4. Traefik muestra el health check /health en verde para cada instancia.
-
---- ACCESO DIRECTO A MICROSERVICIOS (ZERO TRUST) ---
-
-NOTA: En Docker Compose los puertos de microservicios pueden estar expuestos
-temporalmente para depuracion. En Docker Swarm NO estan expuestos al host.
-
-Con Docker Compose (puertos expuestos):
-  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3002/projects
-  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3001/tasks/project/UUID
-  curl.exe -H "Authorization: Bearer TOKEN" http://localhost:3003/teams
-
-Sin token -> 401. Con token invalido -> 403.
-
---------------------------------------------------------------------------------
-3.11 PRUEBA DEL MONITOR (ms-monitor)
---------------------------------------------------------------------------------
-
-ms-monitor es un servicio independiente que consulta /health de cada servicio
-cada 15 segundos y muestra el resultado en http://localhost:4000
-
---- PRUEBA 1: DASHBOARD NORMAL ---
-
-  1. Abrir http://localhost:4000 en el navegador.
-  2. Verificar que los 4 servicios aparecen en verde: ms-tasks, ms-projects,
-     ms-teams, bff-gateway.
-  3. La pagina se autoactualiza cada 15 segundos.
-
---- PRUEBA 2: API JSON ---
-
-  CMD:     curl.exe http://localhost:4000/status
-  Resultado esperado:
-  [
-    {"service":"ms-tasks","url":"http://ms-tasks:3001/health","status":"UP","response":{"status":"ok",...}},
-    {"service":"ms-projects","url":"http://ms-projects:3002/health","status":"UP","response":{...}},
-    {"service":"ms-teams","url":"http://ms-teams:3003/health","status":"UP","response":{...}},
-    {"service":"bff-gateway","url":"http://bff:3000/health","status":"UP","response":{...}}
-  ]
-
---- PRUEBA 3: SIMULAR CAIDA Y VERIFICAR EN DASHBOARD ---
-
-  Con Docker Compose:
-    docker compose stop ms-tasks
-
-  Con Docker Swarm:
-    docker service scale innovatech_ms-tasks=0
-
-  Esperar 15 segundos y recargar http://localhost:4000.
-  ms-tasks debe aparecer en ROJO con status "DOWN".
-
-  Para restaurar:
-    docker compose start ms-tasks                          (Compose)
-    docker service scale innovatech_ms-tasks=1             (Swarm)
-
---------------------------------------------------------------------------------
-3.12 PRUEBAS DEL CIRCUIT BREAKER
---------------------------------------------------------------------------------
-
-NOTA: El Circuit Breaker vive en el BFF. Al usar Docker Swarm con 3 replicas
-del BFF, cada replica tiene su propio circuito. Traefik puede enrutar a una
-replica diferente en cada peticion, por lo que el estado del circuito puede
-variar entre replicas. Para demostrar el circuit breaker de forma predecible,
-usar Docker Compose con una sola instancia del BFF.
-
---- PRUEBA 1: ESTADO NORMAL (CIRCUITO CLOSED) ---
-
-Con todos los servicios corriendo, el circuito esta en CLOSED.
-
-PowerShell:
-  Invoke-WebRequest -Uri "http://localhost/api/projects" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
-Resultado esperado (200): [] o lista real de proyectos.
-
---- PRUEBA 2: SIMULAR CAIDA DE MS-TASKS (ACTIVAR CIRCUIT BREAKER) ---
-
-Con Docker Compose:
-  PASO 1: Detener ms-tasks:
-    docker compose stop ms-tasks
-
-Con Docker Swarm:
-  PASO 1: Escalar ms-tasks a 0:
-    docker service scale innovatech_ms-tasks=0
-
-PASO 2: Llamar a endpoint de tareas via BFF (primera llamada puede tardar 3s):
-  CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost/api/tasks/UUID-CUALQUIERA
-  PowerShell: Invoke-WebRequest -Uri "http://localhost/api/tasks/UUID-CUALQUIERA" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
-
-Resultado esperado (200 OK con fallback):
-  {"error": "MS-Tasks no disponible. Intente mas tarde."}
-
-NOTA: El circuit breaker retorna HTTP 200 con mensaje de fallback, NO un error 503.
-El BFF sigue respondiendo de forma controlada.
-
-PASO 3: Hacer mas llamadas -> las siguientes retornan el fallback INMEDIATAMENTE
-sin esperar el timeout de 3s. Esto confirma que el circuito esta en estado OPEN.
-
---- PRUEBA 3: FALLBACK DE LISTA VACIA ---
-
-Con Docker Compose:   docker compose stop ms-projects
-Con Docker Swarm:     docker service scale innovatech_ms-projects=0
-
-Llamar a getAllProjects via BFF:
-  CMD:      curl.exe -H "Authorization: Bearer TOKEN" http://localhost/api/projects
-
-Resultado esperado (200 OK):
-  []  <- lista vacia, NO un error 500
-
-Para listados, el fallback retorna [] en vez de romper el frontend con un error.
-
---- PRUEBA 4: RECUPERACION (HALF-OPEN -> CLOSED) ---
-
-PASO 1: Con ms-tasks detenido, esperar 10 segundos (resetTimeout del circuito).
-PASO 2: Volver a levantar ms-tasks:
-  Docker Compose:  docker compose start ms-tasks
-  Docker Swarm:    docker service scale innovatech_ms-tasks=1
-PASO 3: Esperar 5 segundos para que ms-tasks inicialice.
-PASO 4: Llamar al endpoint -> el circuito pasa de HALF-OPEN a CLOSED.
-
---- TABLA DE FALLBACKS CONFIGURADOS ---
-
-  Servicio       Operacion              Fallback
-  -----------------------------------------------------------------------
-  MS-Tasks       getTasksByProject      [] (lista vacia)
-  MS-Tasks       getTaskById            {"error": "MS-Tasks no disponible..."}
-  MS-Tasks       createTask             {"error": "No se puede crear..."}
-  MS-Tasks       updateTask             {"error": "No se puede actualizar..."}
-  MS-Tasks       deleteTask             {"error": "No se puede eliminar..."}
-  MS-Projects    getAllProjects          [] (lista vacia)
-  MS-Projects    getProjectById         {"error": "MS-Projects no disponible..."}
-  MS-Projects    createProject          {"error": "No se puede crear..."}
-  MS-Projects    updateProject          {"error": "No se puede actualizar..."}
-  MS-Projects    deleteProject          {"error": "No se puede eliminar..."}
-  MS-Projects    updateStatus           {"error": "No se puede cambiar el estado..."}
-  MS-Teams       getAllTeams             [] (lista vacia)
-  MS-Teams       getTeamById            {"error": "MS-Teams no disponible..."}
-  MS-Teams       createTeam             {"error": "No se puede crear..."}
-  MS-Teams       updateTeam             {"error": "No se puede actualizar..."}
-  MS-Teams       updateStatus           {"error": "No se puede cambiar el estado..."}
-  MS-Teams       deleteTeam             {"error": "No se puede eliminar..."}
-
---------------------------------------------------------------------------------
-3.13 PRUEBA DE AUTO-HEALING CON DOCKER SWARM
---------------------------------------------------------------------------------
-
-Auto-healing es la capacidad de Swarm de detectar que una replica fallo y
-lanzar una nueva automaticamente sin intervencion humana.
-
-REQUISITO: Sistema corriendo con docker stack deploy (Swarm activo).
-
-PASO 1: Verificar que hay 3 replicas del BFF activas:
-  docker service ps innovatech_bff --format "table {{.ID}}\t{{.Name}}\t{{.CurrentState}}"
-
-  Resultado esperado:
-    ID             NAME               CURRENT STATE
-    abc123...      innovatech_bff.1   Running X minutes ago
-    def456...      innovatech_bff.2   Running X minutes ago
-    ghi789...      innovatech_bff.3   Running X minutes ago
-
-PASO 2: Identificar el container ID de una replica y matarla:
-  $containerId = docker ps --filter "name=innovatech_bff" --format "{{.ID}}" | Select-Object -First 1
-  docker stop $containerId
-
-PASO 3: Esperar 10 segundos y verificar que Swarm lanzo una nueva:
-  Start-Sleep -Seconds 10
-  docker service ps innovatech_bff --format "table {{.ID}}\t{{.Name}}\t{{.CurrentState}}\t{{.Error}}"
-
-  Resultado esperado:
-    ID          NAME                   CURRENT STATE             ERROR
-    xyz999...   innovatech_bff.1       Running 8 seconds ago     <- NUEVA replica
-    abc123...    \_ innovatech_bff.1   Failed 18 seconds ago     "task: non-zero exit (137)"
-    def456...   innovatech_bff.2       Running X minutes ago
-    ghi789...   innovatech_bff.3       Running X minutes ago
-
-  El exit code 137 = SIGKILL (docker stop). Swarm detecto la falla y lanzo la
-  replica nueva en menos de 10 segundos. En todo momento el sistema mantuvo
-  al menos 2/3 replicas activas, por lo que el servicio nunca estuvo caido.
-
-PASO 4: Verificar que el sistema sigue respondiendo durante la prueba:
-  curl.exe http://localhost/health
-  Resultado esperado: {"status":"ok","service":"bff-gateway",...}
-
-RESUMEN DE LA PRUEBA:
-  Antes del kill: 3/3 replicas Running
-  Durante kill:   2/3 replicas Running (temporal, ~segundos)
-  Despues:        3/3 replicas Running (Swarm repuso la replica automaticamente)
-
---------------------------------------------------------------------------------
-3.14 PRUEBA DE ESCALADO EN DOCKER SWARM
---------------------------------------------------------------------------------
-
-Docker Swarm permite cambiar el numero de replicas en caliente sin downtime.
-
---- ESCALAR EL BFF A 5 REPLICAS ---
-
-  docker service scale innovatech_bff=5
-
-  Esperar 15 segundos y verificar:
-  docker service ps innovatech_bff
-
-  Resultado esperado: 5 tareas en estado "Running".
-
---- VERIFICAR EL LOAD BALANCING CON 5 REPLICAS ---
-
-  $response = Invoke-WebRequest -Uri "http://localhost/auth/login" -Method POST -ContentType "application/json" -Body '{"apiKey": "admin-key-innovatech"}' -UseBasicParsing
-  $token = ($response.Content | ConvertFrom-Json).token
-  1..10 | ForEach-Object { (Invoke-WebRequest -Uri "http://localhost/whoami" -Headers @{Authorization="Bearer $token"} -UseBasicParsing).Content | ConvertFrom-Json | Select-Object hostname }
-
-  Resultado esperado: el hostname rota entre los 5 contenedores distintos.
-
---- REDUCIR DE VUELTA A 3 REPLICAS ---
-
-  docker service scale innovatech_bff=3
-
-  Swarm detendrá 2 replicas de forma controlada. Las peticiones en vuelo
-  se completan antes de que la replica se cierre (graceful shutdown).
-
---- ROLLING UPDATE (ACTUALIZAR IMAGEN SIN DOWNTIME) ---
-
-  Supongamos que se modifico el BFF y se reconstruyo la imagen:
-    docker compose build bff
-
-  Luego actualizar el servicio (Swarm reemplaza replicas de a 1):
-    docker service update --image innovatech-bff:latest innovatech_bff
-
-  Resultado: Swarm reemplaza replica por replica. En ningun momento hay
-  menos de 2 replicas activas. Si falla la actualizacion, hace rollback
-  automatico (configurado con failure_action: rollback en docker-stack.yml).
-
---------------------------------------------------------------------------------
-3.15 FLUJO DE INTEGRACION COMPLETO
---------------------------------------------------------------------------------
-
-Este flujo valida que los microservicios se comunican correctamente,
-el JWT funciona de extremo a extremo, y las reglas de negocio se cumplen.
-
-PASO 1: Generar token (via Traefik en puerto 80)
-  PowerShell:
-  $response = Invoke-WebRequest -Uri "http://localhost/auth/login" -Method POST -ContentType "application/json" -Body '{"apiKey": "admin-key-innovatech"}' -UseBasicParsing
-  $token = ($response.Content | ConvertFrom-Json).token
-
-PASO 2: Crear proyecto via BFF (via Traefik)
-  PowerShell:
-  $r = Invoke-WebRequest -Uri "http://localhost/api/projects" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"name": "Proyecto Test JWT", "description": "Prueba integracion completa"}' -UseBasicParsing
-  $projectId = ($r.Content | ConvertFrom-Json).id
-
-PASO 3: Crear tarea asociada al proyecto
-  PowerShell:
-  $r = Invoke-WebRequest -Uri "http://localhost/api/tasks" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body "{`"name`": `"Tarea Test`", `"description`": `"Tarea de prueba`", `"area`": `"Backend`", `"assignedTo`": `"dev-001`", `"teamId`": `"team-001`", `"projectId`": `"$projectId`"}" -UseBasicParsing
-  $taskId = ($r.Content | ConvertFrom-Json).id
-
-PASO 4: Intentar completar proyecto (DEBE FALLAR - regla de negocio)
-  CMD:
-  curl.exe -X PATCH http://localhost/api/projects/PROJECT_ID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
-  Resultado esperado (400): {"error": "No se puede marcar como finalizado: existen tareas pendientes"}
-
-PASO 5: Completar la tarea
-  CMD:
-  curl.exe -X PATCH http://localhost/api/tasks/TASK_ID -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
-  Resultado esperado (200): tarea con status COMPLETED.
-
-PASO 6: Completar el proyecto (DEBE FUNCIONAR ahora)
-  CMD:
-  curl.exe -X PATCH http://localhost/api/projects/PROJECT_ID/status -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d "{\"status\": \"COMPLETED\"}"
-  Resultado esperado (200): proyecto con status COMPLETED.
 
 RESUMEN:
-  PASO 1 -> Token JWT generado via Traefik (puerto 80)       OK
-  PASO 2 -> Proyecto creado con status PLANNED               OK
-  PASO 3 -> Tarea creada con status PENDING                  OK
-  PASO 4 -> Proyecto bloqueado por tarea pendiente           OK (regla de negocio)
-  PASO 5 -> Tarea marcada como COMPLETED                     OK
-  PASO 6 -> Proyecto marcado como COMPLETED                  OK
+  - Contadores de proyectos (total, activos, completados)
+  - Contadores de tareas (total, pendientes, en progreso, completadas, bloqueadas, con bitacora)
+  - Contadores de equipos (total, activos, miembros)
+
+PROYECTOS:
+  - Tabla con nombre, descripcion, area y estado
+
+TAREAS:
+  - Agrupadas por proyecto
+  - Cada proyecto muestra sus tareas con nombre, area, estado
+  - Boton "Ver bitacora" en tareas que tienen entradas (solo lectura)
+
+EQUIPOS:
+  - Un bloque por equipo con nombre, area, estado
+  - Tabla de integrantes con nombre y rol en el equipo
+
+TRABAJADORES:
+  - Tabla completa con: nombre completo, RUT, cargo, area de trabajo,
+    equipo al que pertenece, fecha de ingreso, ID de trabajador
+  - El area y equipo se obtienen cruzando con la tabla de miembros
 
 --------------------------------------------------------------------------------
-3.16 CODIGOS HTTP DE REFERENCIA
+3.4 AUTENTICACION DINAMICA
 --------------------------------------------------------------------------------
 
-  200 OK           -> Operacion exitosa (GET, PATCH, DELETE)
-  201 Created      -> Recurso creado exitosamente (POST)
-  400 Bad Request  -> Error de validacion o regla de negocio rota
-  401 Unauthorized -> Sin token JWT o token ausente en el header
-  403 Forbidden    -> Token invalido, expirado, o rol insuficiente
-  404 Not Found    -> El recurso no existe en la base de datos
-  500 Server Error -> Error inesperado (revisar logs con docker compose logs)
+USUARIOS DEL SISTEMA (fijos en memoria):
+  admin   / admin123   -> rol admin
+  lector  / lector123  -> rol reader
+
+USERS DINAMICOS (en BD del BFF):
+  - Se crean al registrar un empleado desde el panel admin
+  - Username = RUT del empleado (se formatea automaticamente en el login)
+  - Password = la que define el admin en el campo "Clave usuario"
+  - Solo el admin puede cambiar la password (via endpoint PATCH /auth/users/:id/password)
+
+LOGIN CON RUT:
+  - El campo usuario detecta si es un RUT (solo numeros y k)
+  - Si es RUT lo formatea automaticamente: 12345678k -> 12.345.678-k
+  - Admin y lector no son RUTs, se dejan como texto normal
+
+RESILIENCIA DE SESION:
+  - Al iniciar sesion, el employeeId se guarda en localStorage
+  - Al verificar el token al arrancar la app, se restaura el employeeId
+  - Si el token expira o el secret cambia, el interceptor 401 limpia localStorage
+    y redirige al login automaticamente
 
 ================================================================================
-PARTE 4 - ERRORES REALES, STACK TECNOLOGICO Y DEFENSA ORAL
+PARTE 4 - GUIA DE PRUEBAS
 ================================================================================
 
-  PARTE 4 - REFERENCIA AVANZADA
-    4.1  Errores reales encontrados durante el desarrollo (con solucion detallada)
-    4.2  Explicacion profunda del stack tecnologico
-    4.3  Defensa tecnica del stack (para evaluacion oral)
-    4.4  Flujo completo de datos (de extremo a extremo)
-
-================================================================================
-4.1 ERRORES REALES ENCONTRADOS DURANTE EL DESARROLLO
-================================================================================
-
-Esta seccion documenta los errores que ocurrieron durante el desarrollo real del
-proyecto, en que momento aparecieron, por que ocurrieron, y como se solucionaron.
-Util para la defensa oral y para diagnostico en instalaciones nuevas.
-
 --------------------------------------------------------------------------------
-ERROR 1: Traefik no puede acceder al Docker socket en Windows Docker Desktop
+4.1 PRUEBAS BASICAS
 --------------------------------------------------------------------------------
 
-CUANDO OCURRIO:
-  Al intentar configurar Traefik con el provider "docker" para que detectara
-  los contenedores automaticamente.
+GENERAR TOKEN (admin):
+  PowerShell:
+  $r = Invoke-WebRequest -Uri "http://localhost/auth/login" -Method POST -ContentType "application/json" -Body '{"username":"admin","password":"admin123"}' -UseBasicParsing
+  $token = ($r.Content | ConvertFrom-Json).token
 
-MENSAJE DE ERROR:
-  ERR Failed to retrieve information of the docker client and server host
-  error="Error response from daemon: "
+CREAR EMPLEADO + USUARIO:
+  PowerShell:
+  Invoke-WebRequest -Uri "http://localhost/api/employees" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"firstName":"Juan","lastName":"Perez","rut":"12.345.678-9","position":"Desarrollador","hireDate":"2026-01-01"}' -UseBasicParsing
 
-CAUSA RAIZ:
-  Traefik con Docker provider necesita acceder al socket de Docker
-  (/var/run/docker.sock en Linux) para consultar los contenedores activos.
-  En Docker Desktop para Windows, ese socket no esta en la ruta estandar de Linux
-  y el daemon de Docker no escucha en la interfaz de red del contenedor.
+  Luego crear usuario en el BFF:
+  Invoke-WebRequest -Uri "http://localhost/auth/users" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"username":"12.345.678-9","password":"clave123","displayName":"Juan Perez","employeeId":"UUID-DEL-EMPLEADO"}' -UseBasicParsing
 
-INTENTOS FALLIDOS:
-  Intento 1: Montar /var/run/docker.sock directamente
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    Resultado: "Error response from daemon" - el socket no existe en esa ruta
-    dentro del contexto de WSL2.
+LOGIN COMO DEVELOPER:
+  Invoke-WebRequest -Uri "http://localhost/auth/login" -Method POST -ContentType "application/json" -Body '{"username":"12.345.678-9","password":"clave123"}' -UseBasicParsing
 
-  Intento 2: Usar TCP tcp://host.docker.internal:2375
-    command:
-      - "--providers.docker.endpoint=tcp://host.docker.internal:2375"
-    Resultado: Docker Desktop limita la interfaz TCP a 127.0.0.1 del host,
-    que no es accesible desde dentro de un contenedor.
+CREAR TAREA (como developer):
+  Invoke-WebRequest -Uri "http://localhost/api/tasks" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $devToken"} -Body '{"name":"Implementar auth","area":"Backend","projectId":"UUID","teamId":"UUID"}' -UseBasicParsing
 
-  Intento 3: Socket proxy (tecnativa/docker-socket-proxy)
-    Resultado: La imagen hace peticiones a GET /v1.24/version y Docker Desktop
-    responde 400 porque espera API version >= 1.41. El proxy no tiene opcion
-    para cambiar la version negociada.
-
-  Intento 4: Variable DOCKER_API_VERSION=1.41
-    Resultado: La variable solo afecta al cliente CLI, no al proxy interno de
-    la imagen del socket-proxy.
-
-SOLUCION DEFINITIVA:
-  Cambiar a Traefik file provider. En lugar de que Traefik consulte la API
-  de Docker, se le da un archivo de configuracion estatico:
-
-  traefik/dynamic.yml:
-    http:
-      routers:
-        bff:
-          rule: "PathPrefix(`/`)"
-          entryPoints: [web]
-          service: bff-service
-      services:
-        bff-service:
-          loadBalancer:
-            servers:
-              - url: "http://bff:3000"
-            healthCheck:
-              path: /health
-              interval: "10s"
-              timeout: "3s"
-
-  Y en docker-compose.yml:
-    command:
-      - "--providers.file.filename=/etc/traefik/dynamic.yml"
-    volumes:
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
-
-POR QUE FUNCIONA:
-  Traefik lee el archivo en lugar de preguntar al daemon Docker. El nombre
-  "bff" resuelve via el DNS interno de Docker (que si funciona).
-
-LECCION:
-  El Docker provider de Traefik es una limitacion arquitectonica de Docker
-  Desktop en Windows, no un bug de Traefik. El file provider es una alternativa
-  igualmente valida y usada en produccion.
+AGREGAR ENTRADA A BITACORA:
+  Invoke-WebRequest -Uri "http://localhost/api/tasks/UUID/logs" -Method POST -ContentType "application/json" -Headers @{Authorization="Bearer $token"} -Body '{"employeeId":"UUID-EMP","authorName":"Juan Perez","comment":"Se implemento el endpoint de login"}' -UseBasicParsing
 
 --------------------------------------------------------------------------------
-ERROR 2: El watcher de Traefik no detecta cambios en Windows/WSL2
+4.2 PRUEBA DEL CIRCUIT BREAKER
 --------------------------------------------------------------------------------
 
-CUANDO OCURRIO:
-  Al modificar traefik/dynamic.yml para agregar 3 servidores con IPs explicitas
-  y verificar que Traefik recargara automaticamente (--providers.file.watch=true).
+PASO 1: Detener ms-tasks:
+  docker compose stop ms-tasks
 
-COMPORTAMIENTO:
-  El archivo se modifico. Traefik NO recargo. La API de Traefik en
-  http://localhost:8080/api/http/services seguia mostrando la configuracion
-  anterior con un solo servidor.
+PASO 2: Llamar a endpoint de tareas (primera llamada espera 3s, luego fallback inmediato):
+  Invoke-WebRequest -Uri "http://localhost/api/tasks/uuid-cualquiera" -Headers @{Authorization="Bearer $token"} -UseBasicParsing
+  Resultado: {"error": "MS-Tasks no disponible."} con HTTP 200
 
-CAUSA RAIZ:
-  Traefik usa el mecanismo inotify de Linux para detectar cambios en archivos.
-  Cuando el archivo dynamic.yml esta en el sistema de archivos de Windows y
-  se monta como volumen en Docker (que corre dentro de WSL2), los cambios
-  hechos desde Windows no generan eventos inotify dentro del contenedor Linux.
-  Es un problema conocido de la capa de virtualizacion Windows -> WSL2 -> Linux.
-
-SOLUCION:
-  Reiniciar el contenedor de Traefik despues de cada cambio al dynamic.yml:
-    docker compose restart traefik
-  O en Swarm actualizar el config y redesplegar el servicio:
-    docker config rm traefik-dynamic
-    docker config create traefik-dynamic ./traefik/dynamic.yml
-    docker service update --force innovatech_traefik
-
-LECCION:
-  En produccion real (Linux nativo), el watch=true funciona perfectamente.
-  En Windows es un workaround necesario.
+PASO 3: Restaurar:
+  docker compose start ms-tasks
 
 --------------------------------------------------------------------------------
-ERROR 3: Login retorna 400 - formato de credenciales incorrecto
+4.3 PRUEBA DE RESILIENCIA JWT
 --------------------------------------------------------------------------------
 
-CUANDO OCURRIO:
-  Al intentar obtener token JWT con el body {"apiKey": "admin-key-innovatech"}
-  y recibir {"error": "Usuario y contraseña son requeridos."}.
+PASO 1: Iniciar sesion y verificar que funciona
 
-CAUSA RAIZ:
-  La implementacion de autenticacion fue cambiada durante el desarrollo.
-  La version original usaba API Keys estaticas (apiKey).
-  La version actual usa username + password con bcrypt (mas segura).
+PASO 2: Rotar el JWT_SECRET:
+  $bytes = New-Object byte[] 64
+  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $secret = [System.BitConverter]::ToString($bytes) -replace '-', ''
+  "VITE_BFF_URL=http://localhost`nJWT_SECRET=$secret" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
+  docker compose up --build
 
-FORMATO INCORRECTO (version anterior):
-  POST /auth/login
-  {"apiKey": "admin-key-innovatech"}
-
-FORMATO CORRECTO (version actual con bcrypt):
-  POST /auth/login
-  {"username": "admin", "password": "admin123"}
-
-USUARIOS DISPONIBLES (en bff-gateway/src/auth/auth.routes.ts):
-  admin     / admin123   -> rol admin  (todos los metodos)
-  sebastian / duoc2026   -> rol admin
-  lector    / lector123  -> rol reader (solo GET)
-
-POR QUE BCRYPT:
-  bcrypt es un algoritmo de hashing de passwords disenado para ser lento
-  (por diseno), lo que lo hace resistente a ataques de fuerza bruta.
-  Incluso si alguien roba la base de datos con los hashes, no puede recuperar
-  la contrasena original facilmente.
-  En bff-gateway usa bcrypt.hashSync al inicializar el modulo (una sola vez)
-  y bcrypt.compare en cada login. Nunca se almacena la contrasena en texto plano.
-
-LECCION:
-  Siempre documentar el formato de autenticacion en detalle. Cuando cambia
-  la implementacion, actualizar toda la documentacion de pruebas.
+PASO 3: Refrescar el navegador
+  Resultado esperado: el interceptor detecta el 401 y redirige al login
 
 --------------------------------------------------------------------------------
-ERROR 4: Los nombres bff-1, bff-2, bff-3 no resuelven en Docker Compose
+4.4 FLUJO DE INTEGRACION COMPLETO
 --------------------------------------------------------------------------------
 
-CUANDO OCURRIO:
-  Al intentar poner 3 entradas explicitas en traefik/dynamic.yml para que
-  Traefik hiciera round-robin real entre las 3 instancias del BFF.
-
-CONFIGURACION ERRONEA PROBADA:
-  services:
-    bff-service:
-      loadBalancer:
-        servers:
-          - url: "http://bff-1:3000"
-          - url: "http://bff-2:3000"
-          - url: "http://bff-3:3000"
-
-MENSAJE DE ERROR (dentro del contenedor Traefik):
-  wget: bad address 'bff-1:3000'
-  wget: bad address 'bff-2:3000'
-
-CAUSA RAIZ:
-  En Docker Compose v2 con --scale bff=3, los contenedores se llaman
-  internamente:
-    fulstack-iii---innovatech-solutions-1-bff-1
-    fulstack-iii---innovatech-solutions-1-bff-2
-    fulstack-iii---innovatech-solutions-1-bff-3
-  El DNS interno de Docker solo registra el NOMBRE DEL SERVICIO (bff) como
-  alias comun que resuelve a todos, no los sufijos -1/-2/-3 sin prefijo.
-
-SOLUCION:
-  Obtener las IPs reales de los contenedores y usarlas directamente:
-
-  # Obtener IPs
-  $ip1 = docker inspect {nombre-bff-1} | ConvertFrom-Json |
-    ForEach-Object { $_.NetworkSettings.Networks.PSObject.Properties.Value[0].IPAddress }
-  (repetir para bff-2 y bff-3)
-
-  # Actualizar dynamic.yml con las IPs reales:
-  servers:
-    - url: "http://172.18.0.9:3000"
-    - url: "http://172.18.0.10:3000"
-    - url: "http://172.18.0.11:3000"
-
-  # Reiniciar Traefik para que recargue:
-  docker compose restart traefik
-
-RESULTADO VERIFICADO:
-  Con las 3 IPs explicitas, los 9 requests se distribuyeron entre
-  3 hostnames distintos (confirmado con el endpoint /whoami).
-
-LIMITACION:
-  Las IPs de contenedores cambian cada vez que se recrea el stack.
-  Esta solucion es valida para demostrar el load balancing en una sesion
-  de pruebas, pero no para produccion permanente.
-  En produccion real, el Docker provider (que no funciona en Windows)
-  descubriria los backends automaticamente.
-
-ALTERNATIVA DE PRODUCCION (Linux/Kubernetes):
-  Usar el Docker provider o Kubernetes Ingress, donde Traefik descubre
-  los endpoints automaticamente sin IPs fijas.
-
---------------------------------------------------------------------------------
-ERROR 5: Load balancing parece no funcionar (siempre el mismo hostname)
---------------------------------------------------------------------------------
-
-CUANDO OCURRIO:
-  Al llamar a /whoami 6 veces seguidas y ver siempre el mismo hostname,
-  incluso con 3 replicas corriendo.
-
-COMPORTAMIENTO OBSERVADO:
-  Request 1 -> hostname: 680add9a75fc
-  Request 2 -> hostname: 680add9a75fc
-  Request 3 -> hostname: 680add9a75fc
-  (siempre el mismo)
-
-CAUSA RAIZ:
-  HTTP/1.1 usa keep-alive por defecto. Cuando PowerShell hace
-  Invoke-WebRequest, abre UNA conexion TCP a Traefik y la reutiliza para
-  todas las peticiones siguientes. Traefik selecciona el backend UNA VEZ
-  al establecer la conexion, y todas las peticiones de esa conexion van al
-  mismo backend. El round-robin de Traefik actua por NUEVA CONEXION, no
-  por peticion individual en la misma conexion.
-
-POR QUE SWARM VIP TAMPOCO AYUDA:
-  Docker Swarm en modo VIP (Virtual IP) crea una IP virtual unica para el
-  servicio. IPVS distribuye las conexiones entrantes entre las replicas.
-  Pero si Traefik tiene una conexion persistente al VIP, IPVS no la
-  rebalancea: la conexion ya fue asignada a un backend y sigue ahi.
-
-SOLUCION PARA LA DEMO:
-  Configurar Traefik con 3 IPs explicitas (como en ERROR 4) para que
-  Traefik abra conexiones independientes a cada backend y pueda rotar.
-
-COMO FUNCIONA EN PRODUCCION REAL:
-  En produccion, DISTINTOS CLIENTES (navegadores, apps) generan DISTINTAS
-  conexiones TCP a Traefik. Cada nueva conexion se asigna al siguiente
-  backend en round-robin. Un cliente real nunca nota que esta "atascado"
-  en un backend porque sus peticiones son pocas y rapidas.
-  La demo de /whoami desde una sola sesion de PowerShell no representa
-  el comportamiento real de produccion con multiples clientes.
-
---------------------------------------------------------------------------------
-ERROR 6: Migraciones Prisma fallan en Docker Swarm (BDs no expuestas)
---------------------------------------------------------------------------------
-
-CUANDO OCURRIO:
-  Al intentar ejecutar npx prisma migrate dev desde la maquina host en un
-  stack de Swarm.
-
-CAUSA RAIZ:
-  En Docker Compose (desarrollo) las BDs tienen puertos expuestos:
-    db-tasks:    5433 en el host
-    db-projects: 5434 en el host
-    db-teams:    5435 en el host
-  Los .env de cada microservicio apuntan a localhost:5433/5434/5435.
-
-  En Docker Swarm (produccion) las BDs NO tienen puertos expuestos al host
-  (Zero Trust a nivel red). Solo son accesibles desde la red overlay interna
-  del Swarm (docker_gwbridge o innovatech-overlay).
-
-SOLUCION:
-  Ejecutar las migraciones DENTRO del contenedor del microservicio,
-  que si tiene acceso a la BD via la red overlay:
-
-  # Obtener el container ID
-  docker ps --filter "name=innovatech_ms-tasks" --format "{{.ID}}"
-
-  # Ejecutar la migracion dentro del contenedor
-  docker exec {container-id} npx prisma migrate deploy
-
-  IMPORTANTE: usar "migrate deploy" (no "migrate dev") en contenedores
-  de produccion. La diferencia:
-    migrate dev    -> interactivo, crea archivos de migracion nuevos,
-                     solo para desarrollo local
-    migrate deploy -> aplica migraciones ya existentes, no interactivo,
-                     ideal para contenedores y CI/CD
-
-LECCION:
-  Siempre verificar si los puertos de BD estan expuestos antes de intentar
-  migrar desde el host. En Swarm, siempre usar docker exec.
-
---------------------------------------------------------------------------------
-ERROR 7: App.tsx usaba URL hardcodeada para el login
---------------------------------------------------------------------------------
-
-CUANDO OCURRIO:
-  Al verificar que el frontend funcionara con el sistema escalado via Traefik.
-
-CODIGO PROBLEMATICO (en frontend-web/src/App.tsx):
-  const response = await axios.post('http://localhost:3000/auth/login', ...)
-
-PROBLEMA:
-  La URL apuntaba directamente al BFF en el puerto 3000, saltandose a Traefik.
-  Con Traefik activo el BFF ya no expone el puerto 3000 al host, por lo que
-  el login fallaba.
-
-SOLUCION:
-  Importar BFF_BASE desde bffClient.ts (que ya usaba la variable de entorno):
-    import { BFF_BASE } from './api/bffClient'
-    const response = await axios.post(`${BFF_BASE}/auth/login`, ...)
-
-  Y en bffClient.ts:
-    export const BFF_BASE = import.meta.env.VITE_BFF_URL ?? 'http://localhost:3000'
-
-  En docker-compose.yml / docker-stack.yml:
-    environment:
-      - VITE_BFF_URL=http://localhost  (apunta a Traefik en puerto 80)
-
-LECCION:
-  Nunca hardcodear URLs de servicios internos. Siempre usar variables de entorno
-  o constantes centralizadas que se puedan cambiar sin tocar el codigo.
-
---------------------------------------------------------------------------------
-ERROR 8: import os no funcionaba con require() en TypeScript
---------------------------------------------------------------------------------
-
-CUANDO OCURRIO:
-  Al agregar el endpoint /whoami al BFF para mostrar el hostname del contenedor.
-
-CODIGO ERRONEO:
-  app.get('/whoami', (_req, res) => {
-    const os = require('os')  // ERROR: require dinamico en modulo TypeScript
-    res.json({ hostname: os.hostname() })
-  })
-
-MENSAJE DE ERROR:
-  TypeError: require is not defined in ES module scope
-
-CAUSA RAIZ:
-  El proyecto usa TypeScript compilado a CommonJS. Los require() dinamicos
-  dentro de funciones arrow pueden causar conflictos dependiendo del contexto
-  de modulo. La forma correcta en TypeScript es el import estatico al inicio.
-
-SOLUCION:
-  Agregar al inicio del archivo bff-gateway/src/app.ts:
-    import os from 'os'
-
-  Y en el handler:
-    app.get('/whoami', (_req, res) => {
-      res.json({ hostname: os.hostname(), pid: process.pid, ... })
-    })
-
-LECCION:
-  En TypeScript/Node.js, siempre usar import estatico en la parte superior
-  del archivo. Los require() dinamicos son un patron de CommonJS puro
-  que puede causar conflictos en proyectos con TypeScript.
-
---------------------------------------------------------------------------------
-ERROR 9: Conflicto de puertos al escalar el BFF con docker compose --scale
---------------------------------------------------------------------------------
-
-CUANDO OCURRIO:
-  Al intentar ejecutar docker compose up --scale bff=3 con el puerto 3000
-  mapeado en docker-compose.yml.
-
-MENSAJE DE ERROR:
-  Error response from daemon: driver failed programming external connectivity
-  on endpoint bff-2: Bind for 0.0.0.0:3000 failed: port is already allocated
-
-CAUSA RAIZ:
-  El docker-compose.yml tenia:
-    bff:
-      ports:
-        - "3000:3000"
-  Cuando Docker intenta crear bff-2, quiere mapear el puerto 3000 del host
-  al contenedor, pero ese puerto ya lo tiene bff-1. Un puerto del host solo
-  puede asignarse a UN contenedor a la vez.
-
-SOLUCION:
-  Eliminar el mapeo de puertos del BFF en docker-compose.yml.
-  Traefik (que si tiene el puerto 80 mapeado) actua como punto de entrada
-  y envia el trafico internamente a http://bff:3000 sin necesidad de exponer
-  el puerto 3000 al host.
-
-  ANTES:
-    bff:
-      ports:
-        - "3000:3000"
-
-  DESPUES:
-    bff:
-      # Sin ports: Traefik enruta via red interna
-
-LECCION:
-  Si un servicio esta detras de un reverse proxy (Traefik), no necesita
-  exponer puertos al host. El proxy es el unico que necesita el puerto expuesto.
-
-================================================================================
-4.2 EXPLICACION PROFUNDA DEL STACK TECNOLOGICO
-================================================================================
-
-Esta seccion explica QUE hace cada tecnologia, POR QUE fue elegida, y como
-interactua con el resto del sistema.
-
---------------------------------------------------------------------------------
-NODE.JS v22 LTS - RUNTIME
---------------------------------------------------------------------------------
-
-Node.js es el entorno de ejecucion de JavaScript en el servidor.
-Usa un modelo de I/O no bloqueante basado en eventos (event loop).
-
-QUE SIGNIFICA NO BLOQUEANTE:
-  En un servidor tradicional (Java/PHP con hilos), si 100 usuarios hacen
-  peticiones a la BD simultaneamente, el servidor crea 100 hilos esperando
-  la respuesta. Cada hilo consume memoria aunque solo este esperando.
-
-  En Node.js, cuando se hace una consulta a la BD, el hilo principal NO espera.
-  Registra un "callback" (o usa async/await) y sigue procesando otras peticiones.
-  Cuando la BD responde, retoma esa peticion. Un solo hilo puede manejar miles
-  de peticiones concurrentes de I/O.
-
-POR QUE v22 LTS (Long Term Support):
-  - Estabilidad garantizada con soporte hasta 2027
-  - Incluye mejoras de performance del motor V8
-  - Compatible con todos los paquetes usados en el proyecto
-
---------------------------------------------------------------------------------
-TYPESCRIPT v5 - LENGUAJE
---------------------------------------------------------------------------------
-
-TypeScript es un superset de JavaScript que agrega tipado estatico opcional.
-Se compila a JavaScript antes de ejecutarse.
-
-QUE AGREGA AL PROYECTO:
-  Sin TypeScript:
-    function crearProyecto(datos) { ... }  // datos puede ser cualquier cosa
-
-  Con TypeScript:
-    interface CrearProyectoDto {
-      name: string
-      description: string
-    }
-    function crearProyecto(datos: CrearProyectoDto) { ... }
-    // El compilador avisa si se pasa un campo mal escrito o faltante
-
-COMO SE USA EN INNOVATECH:
-  - Los DTOs (Data Transfer Objects) definen que campos acepta cada endpoint
-  - Prisma genera tipos TypeScript automaticamente desde el schema
-  - Los errores de tipo se detectan en tiempo de compilacion (npm run build)
-    no en produccion cuando un usuario ya recibio un error
-
-TSCONFIG CRITICO:
-  "module": "commonjs" y "target": "es2020" son criticos.
-  Si se usa "module": "nodenext", los imports cambian de sintaxis y Prisma
-  tiene problemas de compatibilidad.
-
---------------------------------------------------------------------------------
-EXPRESS v4 - FRAMEWORK WEB
---------------------------------------------------------------------------------
-
-Express es un framework minimalista para crear servidores HTTP en Node.js.
-Funciona con un sistema de middlewares: funciones que procesan la peticion
-en cadena antes de llegar al handler final.
-
-FLUJO DE UNA PETICION EN EXPRESS:
-  Peticion HTTP entrante
-    -> CORS middleware (verifica que el origen este permitido)
-    -> JSON parser middleware (convierte el body de texto a objeto JS)
-    -> Auth middleware (verifica el JWT)
-    -> Route handler (logica del endpoint)
-    -> Respuesta HTTP
-
-EN INNOVATECH:
-  - Cada microservicio (ms-tasks, ms-projects, ms-teams) tiene su propio servidor
-    Express con su propio conjunto de middlewares
-  - El BFF tiene un Express adicional que actua como orquestador
-  - El orden de los middlewares es critico: el health check (/health) se registra
-    ANTES del middleware JWT para que sea accesible sin token
-
---------------------------------------------------------------------------------
-PRISMA ORM v5.22.0 - CAPA DE BASE DE DATOS
---------------------------------------------------------------------------------
-
-Prisma es un ORM (Object Relational Mapper) que permite trabajar con la BD
-usando objetos TypeScript en lugar de SQL crudo.
-
-SIN PRISMA (SQL crudo):
-  const result = await db.query(
-    "INSERT INTO tasks (id, name, status, project_id) VALUES ($1, $2, $3, $4)",
-    [uuid(), name, 'PENDING', projectId]
-  )
-  // Sin tipos, sin autocompletado, error en runtime si el nombre de campo cambia
-
-CON PRISMA:
-  const task = await prisma.task.create({
-    data: { name, status: 'PENDING', projectId }
-  })
-  // Con tipos, con autocompletado, error en compilacion si el campo no existe
-
-COMO FUNCIONA EN INNOVATECH:
-  1. El schema.prisma define el modelo de datos (equivale al DDL de SQL)
-  2. npx prisma generate crea el cliente TypeScript con los tipos del schema
-  3. npx prisma migrate deploy crea/modifica las tablas en PostgreSQL
-  4. El codigo usa el cliente para hacer queries con tipos
-
-POR QUE VERSION FIJA 5.22.0 (sin ^):
-  Prisma 6 cambio la forma de manejar los enums. Si se instalara v6
-  automaticamente, el schema.prisma y las queries fallarian con errores
-  oscuros. La version fija garantiza que todos los desarrolladores usen
-  la misma version.
-
---------------------------------------------------------------------------------
-POSTGRESQL v15 - BASE DE DATOS
---------------------------------------------------------------------------------
-
-PostgreSQL es una base de datos relacional de codigo abierto.
-En Innovatech cada microservicio tiene su PROPIA instancia de PostgreSQL
-(Database per Service pattern).
-
-POR QUE UNA BD POR MICROSERVICIO:
-  Si los tres microservicios compartieran una sola BD:
-  - Un cambio de schema en ms-tasks podria romper ms-projects
-  - Un microservicio caido que bloquea la BD afectaria a todos
-  - No se pueden escalar de forma independiente
-
-  Con BD independientes:
-  - Cada microservicio es completamente autonomo
-  - Pueden tener schemas diferentes sin interferencia
-  - Se pueden escalar, hacer backup y migrar de forma independiente
-
-DATOS EN EL SISTEMA:
-  db-tasks    (puerto 5433): tabla Task con UUID, name, status, projectId...
-  db-projects (puerto 5434): tabla Project con UUID, name, status...
-  db-teams    (puerto 5435): tabla Team con UUID, name, status, members[]
-
---------------------------------------------------------------------------------
-JWT (JSON WEB TOKEN) - AUTENTICACION
---------------------------------------------------------------------------------
-
-JWT es un estandar para transmitir informacion de autenticacion como un token
-firmado criptograficamente.
-
-ESTRUCTURA DEL TOKEN:
-  eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImFkbWluIn0.firma
-
-  Parte 1 (header):  algoritmo de firma (HS256)
-  Parte 2 (payload): datos del usuario (username, role, expiracion)
-  Parte 3 (firma):   hash del header+payload con JWT_SECRET
-
-POR QUE ES SEGURO:
-  La firma se calcula con HMAC-SHA256 usando JWT_SECRET.
-  Si alguien modifica el payload (ej: cambia role a "admin"), la firma
-  ya no coincide y el servidor lo rechaza con 403.
-  Sin conocer JWT_SECRET, es computacionalmente imposible generar una firma valida.
-
-ZERO TRUST EN INNOVATECH:
-  Cada microservicio tiene su propio middleware que valida el JWT.
-  Cuando el BFF llama a ms-tasks, le pasa el token del usuario original.
-  ms-tasks valida ese token contra su propio JWT_SECRET (que es el mismo).
-  Esto garantiza que incluso si alguien accediera directamente a ms-tasks
-  saltandose el BFF, igual necesita un JWT valido.
-
-FLUJO DE AUTENTICACION:
-  1. Cliente: POST /auth/login con username + password
-  2. BFF: bcrypt.compare(password, hash) -> si ok, crea JWT firmado
-  3. Cliente: guarda el token y lo envia en cada peticion como:
-     Authorization: Bearer eyJhbG...
-  4. Cada servicio: verifica la firma, extrae el payload, permite o rechaza
-
---------------------------------------------------------------------------------
-BCRYPT - HASHING DE PASSWORDS
---------------------------------------------------------------------------------
-
-bcrypt es un algoritmo de hashing disenado especificamente para passwords.
-
-POR QUE NO SHA256 O MD5:
-  SHA256 y MD5 son rapidos (millones de hashes por segundo en una GPU).
-  Eso los hace vulnerables a ataques de diccionario o fuerza bruta.
-
-  bcrypt es deliberadamente lento. Con saltRounds=10, tarda ~100ms por hash.
-  Un atacante que roba los hashes tardaria anos en probar todas las combinaciones.
-
-COMO FUNCIONA:
-  Al guardar el password:
-    bcrypt.hashSync('admin123', 10) -> "$2a$10$xyz...abc" (hash unico)
-  Al verificar:
-    bcrypt.compare('admin123', '$2a$10$xyz...abc') -> true
-  Mismo password, hashes distintos cada vez (por el "salt" aleatorio interno).
-
-EN INNOVATECH:
-  Los hashes se calculan al inicializar el modulo auth.routes.ts (una sola vez).
-  No se almacenan en BD, estan en memoria del proceso BFF.
-  En produccion real estarian en una BD con hashes precalculados.
-
---------------------------------------------------------------------------------
-OPOSSUM - CIRCUIT BREAKER
---------------------------------------------------------------------------------
-
-Circuit Breaker es un patron de diseno que protege al sistema cuando un
-microservicio falla repetidamente.
-
-ANALOGIA CON EL DISYUNTOR ELECTRICO:
-  En electricidad: si hay un cortocircuito, el disyuntor "abre" y corta la
-  corriente para evitar danos. Se puede "resetear" manualmente.
-
-  En software: si ms-tasks falla 50% de las veces, el circuit breaker "abre"
-  y retorna un fallback inmediato sin intentar llamar al servicio caido.
-  Despues de 10 segundos, prueba una llamada (half-open). Si pasa, cierra.
-
-ESTADOS EN INNOVATECH:
-  CLOSED   -> Normal. Todas las llamadas van a ms-tasks.
-  OPEN     -> ms-tasks fallo demasiado. Las llamadas retornan el fallback
-              inmediatamente sin esperar timeout.
-  HALF-OPEN-> 10s despues de abrirse, deja pasar UNA llamada de prueba.
-
-CONFIGURACION EN EL BFF:
-  timeout: 3000              // Llamada que tarda mas de 3s cuenta como fallo
-  errorThresholdPercentage: 50  // Si 50% fallan, abre el circuito
-  resetTimeout: 10000           // 10s en OPEN antes de pasar a HALF-OPEN
-
-POR QUE ES IMPORTANTE:
-  Sin circuit breaker: si ms-tasks esta caido, cada peticion al BFF espera 3s
-  de timeout antes de fallar. 100 usuarios = 100 hilos bloqueados 3s cada uno.
-  El BFF se vuelve lento y puede saturarse.
-
-  Con circuit breaker: despues de los primeros fallos, el circuito abre y
-  las respuestas son inmediatas (~1ms de fallback). El BFF sigue respondiendo
-  normal aunque ms-tasks este completamente caido.
-
---------------------------------------------------------------------------------
-TRAEFIK v3.0 - LOAD BALANCER / REVERSE PROXY
---------------------------------------------------------------------------------
-
-Traefik es un reverse proxy y load balancer moderno escrito en Go.
-
-DIFERENCIA ENTRE REVERSE PROXY Y LOAD BALANCER:
-  Reverse proxy: recibe peticiones externas y las reenvía a servicios internos.
-    El cliente no sabe la IP real del servicio interno.
-  Load balancer: distribuye las peticiones entre multiples instancias de un
-    servicio para no sobrecargar ninguna.
-  Traefik hace ambas cosas.
-
-COMO FUNCIONA EN INNOVATECH:
-  1. Cliente hace GET http://localhost/api/projects
-  2. Traefik recibe en puerto 80
-  3. Router "bff" matchea PathPrefix("/")
-  4. Load balancer selecciona el siguiente backend en round-robin
-  5. Traefik reenvía la peticion a http://172.18.0.X:3000/api/projects
-  6. BFF responde y Traefik devuelve la respuesta al cliente
-
-HEALTH CHECK DE TRAEFIK:
-  Cada 10 segundos, Traefik hace GET /health a cada backend.
-  Si un backend responde distinto de 2xx, Traefik lo saca de la rotacion.
-  El cliente nunca recibe un error porque se llego a un backend caido.
-
-FILE PROVIDER vs DOCKER PROVIDER:
-  Docker provider: Traefik pregunta al daemon Docker que contenedores hay
-    y extrae la config de los labels Docker. Ideal en Linux nativo.
-    No funciona en Windows Docker Desktop (problema de socket).
-  File provider: Traefik lee un archivo YAML estatico con la configuracion.
-    Requiere reinicio o file watcher para actualizarse. Funciona en Windows.
-
---------------------------------------------------------------------------------
-DOCKER Y DOCKER COMPOSE v3.8
---------------------------------------------------------------------------------
-
-Docker: tecnologia de contenedores que empaqueta una aplicacion con todas sus
-dependencias en una imagen portable que corre igual en cualquier maquina.
-
-DIFERENCIA CONTENEDOR vs MAQUINA VIRTUAL:
-  VM: emula hardware completo (CPU, RAM, disco). Cada VM tiene su propio OS.
-    Arranca en minutos. Ocupa GB de RAM.
-  Contenedor: comparte el kernel del OS del host. Solo empaqueta la aplicacion
-    y sus librerias. Arranca en segundos. Ocupa MB de RAM.
-
-DOCKERFILE EN INNOVATECH:
-  FROM node:22-alpine  -> imagen base (Node 22 en Alpine Linux ~50MB)
-  COPY package*.json   -> copia solo el manifest de dependencias
-  RUN npm install      -> instala dependencias (se cachea si package.json no cambio)
-  COPY . .             -> copia el codigo fuente
-  RUN npm run build    -> compila TypeScript a JavaScript
-  HEALTHCHECK          -> define como Docker verifica si el contenedor esta sano
-  CMD ["node", "dist/app.js"]  -> comando que arranca la aplicacion
-
-DOCKER COMPOSE:
-  Herramienta para definir y correr multi-contenedor en un archivo YAML.
-  En Innovatech, levanta 10 servicios con un solo comando (docker compose up).
-  Maneja el orden de arranque (depends_on), redes internas y variables de entorno.
-
---------------------------------------------------------------------------------
-DOCKER SWARM - ORQUESTADOR
---------------------------------------------------------------------------------
-
-Docker Swarm convierte uno o mas hosts Docker en un cluster gestionado.
-En Innovatech se usa para auto-healing y replicas del BFF.
-
-CONCEPTOS CLAVE:
-  Stack:   grupo de servicios desplegados juntos (docker stack deploy)
-  Service: definicion de como corre un contenedor con cuantas replicas
-  Task:    instancia concreta de un service (un contenedor en ejecucion)
-  Manager: nodo que toma decisiones (en Innovatech, el unico nodo)
-  Overlay: red virtual que conecta contenedores en el cluster
-
-AUTO-HEALING:
-  El manager monitorea el estado de cada task.
-  Si una task falla (exit code != 0 o HEALTHCHECK failing), el manager
-  la marca como Failed y crea una nueva task automaticamente.
-  El proceso tarda entre 5 y 15 segundos dependiendo de restart_policy.delay.
-
-ROLLING UPDATE:
-  Al actualizar una imagen (docker service update --image), Swarm reemplaza
-  replicas de a una (parallelism: 1). Espera que la nueva este healthy antes
-  de apagar la anterior (order: start-first). Si falla, hace rollback
-  automatico (failure_action: rollback).
-
-DIFERENCIA CON KUBERNETES:
-  Kubernetes es mas potente (auto-scaling basado en CPU, namespaces, RBAC,
-  Ingress resources, etc.) pero es mucho mas complejo de instalar y operar.
-  Docker Swarm es parte de Docker y no requiere instalacion adicional.
-  Para este proyecto, Swarm es la eleccion correcta en complejidad/beneficio.
-
-================================================================================
-4.3 DEFENSA TECNICA DEL STACK (PARA EVALUACION ORAL)
-================================================================================
-
-Esta seccion responde preguntas tipicas de una defensa tecnica oral.
-Las respuestas estan redactadas para ser explicadas en voz alta.
-
---------------------------------------------------------------------------------
-"¿Por que microservicios y no una aplicacion monolitica?"
---------------------------------------------------------------------------------
-
-Un monolito es mas simple de desarrollar al inicio, pero tiene limitaciones:
-- Si una parte falla (ej: modulo de tareas), toda la aplicacion cae
-- Si una parte necesita mas recursos, hay que escalar todo el sistema
-- Equipos distintos no pueden trabajar en paralelo sin conflictos
-
-Con microservicios en Innovatech:
-- ms-tasks puede caer y ms-projects y ms-teams siguen funcionando
-- El BFF protege al usuario con el circuit breaker (fallback inmediato)
-- Se puede escalar solo el BFF (que es el cuello de botella de trafico)
-  sin tocar las bases de datos ni los microservicios
-
-La arquitectura actual refleja el dominio del negocio: Proyectos, Tareas y
-Equipos son dominios distintos con sus propios datos y reglas de negocio.
-Cada uno tiene su propia base de datos, lo que garantiza bajo acoplamiento.
-
---------------------------------------------------------------------------------
-"¿Por que JWT y no sesiones?"
---------------------------------------------------------------------------------
-
-Las sesiones tradicionales almacenan el estado en el servidor (en memoria o BD).
-Eso significa que todas las peticiones deben ir al mismo servidor o sincronizar
-el estado entre servidores, lo que es incompatible con el escalado horizontal.
-
-JWT es stateless: toda la informacion esta en el token firmado.
-Cualquiera de las 3 replicas del BFF puede verificar el token sin consultar
-ningun almacen centralizado. El usuario puede ir al BFF-1 en una peticion y
-al BFF-3 en la siguiente, y ambas verifican el mismo token correctamente.
-
-El modelo Zero Trust agrega una capa extra: aunque el BFF ya verifico el JWT,
-cada microservicio lo verifica de nuevo. Esto significa que si alguien
-comprometiera el BFF y le quitara la capa de autenticacion, igual no podria
-acceder a los microservicios. La seguridad no depende de un solo punto.
-
---------------------------------------------------------------------------------
-"¿Por que Traefik y no NGINX?"
---------------------------------------------------------------------------------
-
-NGINX es excelente como reverse proxy pero tiene limitaciones para entornos
-dinamicos: su configuracion es estatica y requiere recarga manual cuando
-se agregan o quitan backends.
-
-Traefik fue disenado para entornos de contenedores donde los servicios
-aparecen y desaparecen dinamicamente. Tiene:
-- Dashboard visual en tiempo real (localhost:8080)
-- Health checks automaticos integrados
-- Soporte nativo para Docker, Swarm y Kubernetes
-- Recarga de configuracion sin downtime
-
-En el proyecto usamos el file provider (en lugar del Docker provider)
-debido a una limitacion de Windows Docker Desktop con el socket de Docker.
-Esta es una solucion valida de produccion: muchas empresas usan file provider
-cuando el entorno no es compatible con el autodescubrimiento dinamico.
-
---------------------------------------------------------------------------------
-"¿Que pasa si el BFF Gateway se cae?"
---------------------------------------------------------------------------------
-
-Antes de implementar el load balancer y Swarm:
-El BFF era un punto unico de fallo. Si caia, todo el sistema quedaba
-inaccesible para los clientes.
-
-Despues de la implementacion actual:
-1. Traefik tiene health checks cada 10 segundos sobre /health del BFF
-2. Si una replica del BFF cae, Traefik la saca de la rotacion automaticamente
-3. Docker Swarm detecta la replica caida y levanta una nueva en ~10 segundos
-4. Durante esos 10 segundos, las otras 2 replicas siguen atendiendo trafico
-5. El cliente nunca recibe un error: Traefik simplemente no le manda mas
-   peticiones a la replica problematica
-
-Esto elimina el punto unico de fallo que existia antes.
-
---------------------------------------------------------------------------------
-"¿Como funciona el Circuit Breaker con las 3 replicas del BFF?"
---------------------------------------------------------------------------------
-
-Cada replica del BFF tiene su PROPIO estado de circuit breaker en memoria.
-Cuando la replica A detecta que ms-tasks falla y abre su circuito, las
-replicas B y C tienen sus circuitos aun cerrados (no saben lo que le paso a A).
-
-Esto tiene una implicacion practica: si un cliente llega a la replica A,
-recibe el fallback inmediatamente. Si llega a la replica B, espera el timeout
-de 3 segundos antes de activar su propio circuito.
-
-En produccion con muchos clientes, esto funciona bien porque rapidamente
-todas las replicas detectan el fallo y abren sus circuitos. En una demo
-con pocas peticiones, puede verse comportamiento inconsistente dependiendo
-de a que replica llega cada peticion.
-
---------------------------------------------------------------------------------
-"¿Por que bcrypt y no guardar el password en texto plano o con MD5?"
---------------------------------------------------------------------------------
-
-Texto plano: si alguien accede a la BD (por SQL injection o backup robado),
-ve todos los passwords directamente. Los usuarios suelen reutilizar passwords,
-por lo que un atacante podria acceder a sus cuentas en otros servicios.
-
-MD5/SHA1: aunque no se ven directamente, existen "rainbow tables" (tablas
-precomputadas de MD5/SHA1 de millones de passwords comunes). El atacante
-no necesita calcular nada: solo busca el hash en la tabla.
-
-bcrypt tiene dos ventajas criticas:
-1. Salt automatico: cada hash incluye un valor aleatorio (el "salt"). El mismo
-   password produce hashes distintos cada vez, haciendo inutiles las rainbow tables.
-2. Work factor ajustable: saltRounds=10 hace que calcular UN hash tome ~100ms.
-   Si el atacante quiere probar 1 millon de passwords, tardaria 27 horas
-   con hardware especializado. Con MD5 tardaria segundos.
-
---------------------------------------------------------------------------------
-"¿Que es el patron Database per Service y por que lo usamos?"
---------------------------------------------------------------------------------
-
-Database per Service significa que cada microservicio tiene su propia base de datos
-que ningun otro microservicio puede acceder directamente.
-
-Si ms-projects necesita informacion de ms-tasks (para verificar si hay tareas
-pendientes antes de completar un proyecto), NO consulta la BD de ms-tasks
-directamente. En cambio, le hace una peticion HTTP a ms-tasks con su JWT.
-
-Ventajas en Innovatech:
-1. Si la BD de ms-tasks falla, ms-projects y ms-teams siguen funcionando
-2. Podriamos cambiar ms-tasks de PostgreSQL a MongoDB sin afectar a nadie
-3. Las migraciones de schema de ms-tasks no pueden romper ms-projects
-4. Cada BD puede estar en un servidor distinto si necesitamos mas capacidad
-
-La "desventaja" es que no se pueden hacer JOINs entre tablas de distintos
-microservicios. En Innovatech esto se resuelve: la logica que necesita datos
-de varios servicios vive en el BFF, que orquesta las llamadas necesarias.
-
-================================================================================
-4.4 FLUJO COMPLETO DE DATOS (DE EXTREMO A EXTREMO)
-================================================================================
-
-Esta seccion traza el recorrido exacto que hace una peticion real desde el
-navegador hasta la base de datos y de regreso.
-
-CASO DE USO: Usuario hace login y crea un proyecto.
-
---------------------------------------------------------------------------------
-FASE 1: LOGIN (POST /auth/login)
---------------------------------------------------------------------------------
-
-PASO 1: El navegador (frontend React en puerto 5173) ejecuta:
-  axios.post('http://localhost/auth/login', { username: 'admin', password: 'admin123' })
-  La URL apunta a http://localhost (Traefik en puerto 80).
-  El valor viene de la variable de entorno VITE_BFF_URL.
-
-PASO 2: La peticion TCP llega al puerto 80 del host.
-  Docker redirige ese puerto al contenedor de Traefik.
-
-PASO 3: Traefik recibe la peticion en su entrypoint "web" (puerto 80).
-  El router "bff" matchea la regla PathPrefix("/") para TODAS las rutas.
-  Traefik selecciona el siguiente servidor en round-robin del bff-service.
-  Traefik reenvía la peticion via TCP al backend seleccionado (ej: 172.18.0.9:3000).
-
-PASO 4: El contenedor BFF Gateway (replica 1) recibe la peticion.
-  Express procesa los middlewares en orden:
-    -> JSON parser: convierte el body de texto a { username: 'admin', password: 'admin123' }
-    -> CORS: verifica que el origen (http://localhost:5173) esta permitido
-    -> Router: la ruta POST /auth/login va al handler de auth.routes.ts
-  auth.routes.ts:
-    1. Extrae username y password del body
-    2. Busca el usuario en el objeto USERS en memoria
-    3. Llama a bcrypt.compare('admin123', hash_almacenado)
-    4. bcrypt verifica criptograficamente que el password es correcto
-    5. jwt.sign({ username, role, displayName }, JWT_SECRET, { expiresIn: '24h' })
-    6. Genera un token firmado de 24 horas de validez
-  El BFF responde 200 con el token.
-
-PASO 5: Traefik recibe la respuesta del backend y la reenvía al navegador.
-
-PASO 6: React recibe { token, role, username } y guarda el token.
-  En bffClient.ts: axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`
-  Todos los requests futuros incluiran este header automaticamente.
-
---------------------------------------------------------------------------------
-FASE 2: CREAR PROYECTO (POST /api/projects)
---------------------------------------------------------------------------------
-
-PASO 7: El navegador envia:
-  POST http://localhost/api/projects
-  Headers: { Authorization: "Bearer eyJhbGciOiJIUzI1NiJ9..." }
-  Body: { name: "Proyecto Alpha", description: "Primer proyecto" }
-
-PASO 8: Traefik recibe en puerto 80.
-  El router "bff" matchea PathPrefix("/").
-  Round-robin selecciona la replica 2 del BFF (172.18.0.10:3000).
-  (Puede ser una replica diferente a la del login, esto es normal)
-
-PASO 9: BFF Gateway replica 2 recibe la peticion.
-  Express procesa middlewares:
-    -> JSON parser: convierte body
-    -> CORS: verifica origen
-    -> Auth middleware (verifyToken):
-       1. Lee el header Authorization: Bearer eyJhbG...
-       2. Extrae el token del string (quita el prefijo "Bearer ")
-       3. jwt.verify(token, JWT_SECRET) -> verifica la firma criptografica
-       4. Si la firma no coincide: responde 403 Forbidden
-       5. Si el token expiro: responde 403 Forbidden
-       6. Si todo ok: pone el payload del token en req.user y llama next()
-    -> Router: la ruta POST /api/projects va a projects.routes.ts en el BFF
-
-PASO 10: projects.routes.ts en el BFF llama a projects.service.ts.
-  projects.service.ts tiene un Circuit Breaker de Opossum para la llamada a
-  ms-projects. El circuit breaker evalua su estado:
-    - CLOSED: procede a llamar a ms-projects
-    - OPEN: retorna inmediatamente con el fallback (no llama a ms-projects)
-  Asumiendo CLOSED, el breaker ejecuta la funcion de llamada.
-
-PASO 11: El BFF hace una peticion HTTP interna a ms-projects:
-  axios.post('http://ms-projects:3002/projects', body, {
-    headers: { Authorization: `Bearer ${req.headers.authorization.split(' ')[1]}` }
-  })
-  El BFF REENVÍA el JWT original del usuario. No crea uno nuevo.
-  "ms-projects" resuelve via DNS interno de Docker a la IP del contenedor ms-projects.
-
-PASO 12: ms-projects recibe la peticion.
-  Express procesa middlewares:
-    -> JSON parser
-    -> /health esta registrado ANTES del auth middleware (es publico)
-    -> Auth middleware (su propio verifyToken):
-       jwt.verify(token, process.env.JWT_SECRET) -> verifica el mismo secret
-       Si el BFF enviara una peticion sin token o con token invalido, ms-projects
-       la rechazaria con 401/403. Esto es el Zero Trust.
-    -> Router: POST /projects va a project.controller.ts
-
-PASO 13: project.controller.ts valida los datos:
-  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' })
-  if (!description) return res.status(400).json({ error: 'La descripcion es obligatoria' })
-  Si todo ok, llama a project.service.ts con los datos validados.
-
-PASO 14: project.service.ts llama a Prisma:
-  const project = await prisma.project.create({
-    data: { name, description, status: 'PLANNED' }
-  })
-  Prisma genera el SQL:
-    INSERT INTO "Project" (id, name, description, status, "createdAt", "updatedAt")
-    VALUES ('uuid-generado', 'Proyecto Alpha', 'Primer proyecto', 'PLANNED', now(), now())
-  Envia el SQL a PostgreSQL (contenedor db-projects via red Docker interna).
-
-PASO 15: PostgreSQL ejecuta el INSERT y retorna la fila creada.
-  Prisma convierte la fila a objeto TypeScript: { id: '...', name: '...', status: 'PLANNED', ... }
-
-PASO 16: La respuesta sube por la cadena de vuelta:
-  project.service.ts -> project.controller.ts -> Express (res.status(201).json(project))
-  -> ms-projects responde HTTP 201 con el proyecto creado en JSON
-
-PASO 17: El BFF recibe la respuesta de ms-projects via axios.
-  El circuit breaker registra la llamada como exitosa (no incrementa el contador de fallos).
-  El BFF responde al cliente con el mismo 201 + body.
-
-PASO 18: Traefik recibe la respuesta del BFF y la reenvía al navegador.
-
-PASO 19: React recibe el proyecto creado y actualiza el estado de la aplicacion.
-  La UI muestra el nuevo proyecto en la lista con status PLANNED.
-
---------------------------------------------------------------------------------
-DIAGRAMA RESUMIDO DEL FLUJO
---------------------------------------------------------------------------------
-
-  CLIENTE (React :5173)
-      |  POST /api/projects  {Authorization: Bearer TOKEN}
-      v
-  TRAEFIK (:80)
-      |  Round-robin -> BFF replica (1/2/3)
-      v
-  BFF GATEWAY (:3000)
-      |  1. CORS check
-      |  2. JSON parse
-      |  3. JWT verify (firma, expiracion, rol)
-      |  4. Circuit Breaker evalua estado
-      |  5. axios.post('http://ms-projects:3002/projects') con mismo JWT
-      v
-  MS-PROJECTS (:3002)
-      |  1. JWT verify NUEVO (Zero Trust - independiente del BFF)
-      |  2. Validacion de campos (controller)
-      |  3. prisma.project.create()
-      v
-  POSTGRESQL (db-projects:5432)
-      |  INSERT INTO "Project" ...
-      |  SELECT * FROM "Project" WHERE id = nuevo_id
-      v
-  (respuesta sube por toda la cadena)
-      v
-  CLIENTE recibe { id, name, status: "PLANNED", createdAt }
-
-TIEMPO TOTAL DE LA PETICION: ~50-150ms en condiciones normales.
-  Distribucion aproximada:
-    Red cliente-Traefik:   <1ms  (local)
-    Traefik-BFF:           <1ms  (Docker bridge)
-    JWT verify en BFF:     ~2ms
-    BFF a ms-projects:     <1ms  (Docker bridge)
-    JWT verify en MS:      ~2ms
-    Validacion controller: <1ms
-    Prisma query:          ~20-80ms (PostgreSQL en contenedor local)
-    Serializacion JSON:    ~1ms
-    Propagacion respuesta: <1ms
+1. Login como admin -> crear empleado "Sebastián" con clave "duoc2026"
+2. Crear equipo "Equipo Backend" con Sebastián como lider (se agrega como miembro)
+3. Crear proyecto "Proyecto Alpha" y asignarle el equipo
+4. Logout -> Login como Sebastián (RUT formateado)
+5. Ver "Proyecto Alpha" en la vista developer
+6. Crear tarea "Implementar JWT" (se asigna automaticamente a Sebastián)
+7. Cambiar estado de la tarea a IN_PROGRESS
+8. Agregar entrada a la bitacora: "Iniciando implementacion"
+9. Logout -> Login como lector
+10. Ver en Reportes -> Tareas -> Proyecto Alpha -> bitacora de la tarea
 
 ================================================================================
          Innovatech Solutions | Desarrollo FullStack III | DuocUC
-                              Version 6.0 | 2026
+                              Version 7.0 | 2026
+          Sebastián Escamilla (se-escamilla98) | Livan Sepúlveda
 ================================================================================
