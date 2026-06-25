@@ -52,29 +52,42 @@ export class TeamService {
   // ==================== TEAMS ====================
 
   async createTeam(data: {
-    name: string;
-    description: string;
-    area: string;
-    leaderId: string;
-    members?: { employeeId: string; name: string; role: string }[];
-  }): Promise<Team> {
-    const teamData = TeamFactory.create(data.name, data.description, data.area, data.leaderId);
-    return await prisma.team.create({
-      data: {
-        ...(teamData as any),
-        members: data.members && data.members.length > 0
-          ? { create: data.members }
-          : undefined,
-      },
-      include: { members: true },
+  name: string;
+  description: string;
+  area: string;
+  leaderId: string;
+  members?: { employeeId: string; name: string; role: string }[];
+}): Promise<Team> {
+  const teamData = TeamFactory.create(data.name, data.description, data.area, data.leaderId);
+
+  // Obtener datos del empleado líder para incluirlo como miembro
+  const leaderEmployee = await prisma.employee.findUnique({ where: { id: data.leaderId } });
+  const leaderName = leaderEmployee
+    ? [leaderEmployee.firstName, leaderEmployee.secondName, leaderEmployee.lastName, leaderEmployee.motherLastName]
+        .filter(Boolean).join(' ')
+    : data.leaderId;
+
+  // Construir lista de miembros incluyendo al líder si no está ya
+  const membersList = data.members ? [...data.members] : [];
+  const leaderAlreadyMember = membersList.some(m => m.employeeId === data.leaderId);
+  if (!leaderAlreadyMember) {
+    membersList.unshift({ // unshift para que aparezca primero
+      employeeId: data.leaderId,
+      name:       leaderName,
+      role:       'Tech Lead',
     });
   }
 
-  async getAll(): Promise<Team[]> {
-    return await prisma.team.findMany({
-      include: { members: true },
-    });
-  }
+  return await prisma.team.create({
+    data: {
+      ...(teamData as any),
+      members: membersList.length > 0
+        ? { create: membersList }
+        : undefined,
+    },
+    include: { members: true },
+  });
+}
 
   async getTeamById(id: string): Promise<Team | null> {
     return await prisma.team.findUnique({
@@ -82,6 +95,12 @@ export class TeamService {
       include: { members: true },
     });
   }
+
+  async getAll(): Promise<Team[]> {
+  return await prisma.team.findMany({
+    include: { members: true },
+  });
+}
 
   async updateStatus(id: string, newStatus: string): Promise<Team> {
     const team = await prisma.team.findUnique({ where: { id } });
