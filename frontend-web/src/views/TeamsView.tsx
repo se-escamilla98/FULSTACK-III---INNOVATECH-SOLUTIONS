@@ -1,22 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import bffClient from '../api/bffClient';
+import { BFF_BASE } from '../api/bffClient';
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
 interface Employee {
-  id: string;
-  rut: string;
-  firstName: string;
-  secondName?: string;
-  lastName: string;
-  motherLastName?: string;
-  position: string;
-  hireDate: string;
+  id: string; rut: string; firstName: string; secondName?: string;
+  lastName: string; motherLastName?: string; position: string; hireDate: string;
 }
 interface Member { id: string; employeeId: string; name: string; role: string; }
 interface Team   { id: string; name: string; description: string; area: string; leaderId: string; members: Member[]; status: string; }
 
-const TEAM_ROLES = ['Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'Tech Lead', 'QA Engineer', 'DevOps Engineer', 'UI/UX Designer', 'Scrum Master'];
-const POSITIONS  = ['Desarrollador', 'Diseñador', 'QA Tester', 'DevOps', 'Scrum Master', 'Product Owner', 'Analista', 'Gerente', 'Tech Lead'];
+const TEAM_ROLES = ['Frontend Developer','Backend Developer','Full Stack Developer','Tech Lead','QA Engineer','DevOps Engineer','UI/UX Designer','Scrum Master'];
+const POSITIONS  = ['Desarrollador','Diseñador','QA Tester','DevOps','Scrum Master','Product Owner','Analista','Gerente','Tech Lead'];
 
 const formatRut = (value: string): string => {
   const clean = value.replace(/[^0-9kK]/g, '');
@@ -37,7 +31,6 @@ const statusStyle = (st: string): React.CSSProperties => {
   return { ...m[st] || m.ACTIVE, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 700 };
 };
 
-// ─── Componente ───────────────────────────────────────────────────────────────
 export default function TeamsView({ role }: { role: string }) {
   const isAdmin = role === 'admin';
 
@@ -46,7 +39,7 @@ export default function TeamsView({ role }: { role: string }) {
   const [empSaving, setEmpSaving]       = useState(false);
   const [empForm, setEmpForm] = useState({
     firstName: '', secondName: '', lastName: '', motherLastName: '',
-    rut: '', position: '', hireDate: '',
+    rut: '', position: '', hireDate: '', userPassword: '',
   });
 
   const [teams, setTeams]     = useState<Team[]>([]);
@@ -54,18 +47,16 @@ export default function TeamsView({ role }: { role: string }) {
   const [error, setError]     = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const [showModal, setShowModal] = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [form, setForm]           = useState({ name: '', description: '', area: '', leaderId: '' });
-  const [initMembers, setInitMembers] = useState<{ employeeId: string; name: string; role: string }[]>([]);
-  const [selEmpId, setSelEmpId]   = useState('');
-  const [selRole, setSelRole]     = useState('');
+  const [showModal, setShowModal]         = useState(false);
+  const [saving, setSaving]               = useState(false);
+  const [form, setForm]                   = useState({ name: '', description: '', area: '', leaderId: '' });
+  const [initMembers, setInitMembers]     = useState<{ employeeId: string; name: string; role: string }[]>([]);
+  const [selEmpId, setSelEmpId]           = useState('');
+  const [selRole, setSelRole]             = useState('');
+  const [addingTo, setAddingTo]           = useState<string | null>(null);
+  const [addEmpId, setAddEmpId]           = useState('');
+  const [addRole, setAddRole]             = useState('');
 
-  const [addingTo, setAddingTo] = useState<string | null>(null);
-  const [addEmpId, setAddEmpId] = useState('');
-  const [addRole, setAddRole]   = useState('');
-
-  // ── Carga ──────────────────────────────────────────────────────────────────
   const loadEmployees = async () => {
     try {
       const res = await bffClient.get('/employees');
@@ -86,17 +77,21 @@ export default function TeamsView({ role }: { role: string }) {
   useEffect(() => { if (showModal)    loadEmployees(); }, [showModal]);
   useEffect(() => { if (addingTo !== null) loadEmployees(); }, [addingTo]);
   useEffect(() => {
-    if (success) { const t = setTimeout(() => setSuccess(null), 3000); return () => clearTimeout(t); }
+    if (success) { const t = setTimeout(() => setSuccess(null), 4000); return () => clearTimeout(t); }
   }, [success]);
 
   // ── Empleados ──────────────────────────────────────────────────────────────
   const handleCreateEmployee = async () => {
     if (!empForm.firstName.trim() || !empForm.lastName.trim() || !empForm.rut.trim() || !empForm.position || !empForm.hireDate) {
-      setError('Nombre, apellido, RUT, cargo y fecha de contratación son obligatorios.'); return;
+      setError('Nombre, apellido, RUT, cargo y fecha son obligatorios.'); return;
+    }
+    if (!empForm.userPassword.trim()) {
+      setError('La clave de usuario es obligatoria.'); return;
     }
     setEmpSaving(true);
     try {
-      await bffClient.post('/employees', {
+      // 1. Crear empleado en ms-teams
+      const empRes = await bffClient.post('/employees', {
         firstName:      empForm.firstName.trim(),
         secondName:     empForm.secondName.trim() || undefined,
         lastName:       empForm.lastName.trim(),
@@ -105,15 +100,40 @@ export default function TeamsView({ role }: { role: string }) {
         position:       empForm.position,
         hireDate:       empForm.hireDate,
       });
-      setEmpForm({ firstName: '', secondName: '', lastName: '', motherLastName: '', rut: '', position: '', hireDate: '' });
-      setSuccess('Empleado creado correctamente.');
+
+      const newEmployee = empRes.data;
+      const fullName    = empFullName(newEmployee);
+
+      // 2. Crear usuario en la BD del BFF con RUT como username
+      const token = localStorage.getItem('innovatech_token');
+      await fetch(`${BFF_BASE}/auth/users`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token || '' },
+        body: JSON.stringify({
+          username:    empForm.rut,          // RUT como username
+          password:    empForm.userPassword,
+          displayName: fullName,
+          employeeId:  newEmployee.id,
+        }),
+      }).then(async r => {
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || 'Error al crear usuario');
+        }
+        return r.json();
+      });
+
+      setEmpForm({ firstName: '', secondName: '', lastName: '', motherLastName: '', rut: '', position: '', hireDate: '', userPassword: '' });
+      setSuccess(`✅ Empleado "${fullName}" creado. Usuario: ${empForm.rut} | Clave: ${empForm.userPassword}`);
       await loadEmployees();
-    } catch (err: any) { setError(err.response?.data?.error || 'Error al crear empleado'); }
-    finally { setEmpSaving(false); }
+
+    } catch (err: any) {
+      setError(err.message || 'Error al crear empleado');
+    } finally { setEmpSaving(false); }
   };
 
   const handleDeleteEmployee = async (id: string, name: string) => {
-    if (!window.confirm(`¿Eliminar a "${name}"?`)) return;
+    if (!window.confirm(`¿Eliminar a "${name}"? También se desactivará su usuario.`)) return;
     try { await bffClient.delete(`/employees/${id}`); await loadEmployees(); }
     catch { setError('No se pudo eliminar el empleado.'); }
   };
@@ -123,9 +143,7 @@ export default function TeamsView({ role }: { role: string }) {
     e.preventDefault(); setSaving(true);
     try {
       const res = await bffClient.post('/teams', { ...form, members: initMembers });
-      // Usar la respuesta directa del POST para mostrar los miembros inmediatamente
-      const newTeam = res.data;
-      setTeams(prev => [newTeam, ...prev]);
+      setTeams(prev => [res.data, ...prev]);
       setShowModal(false);
       setForm({ name: '', description: '', area: '', leaderId: '' });
       setInitMembers([]);
@@ -181,7 +199,6 @@ export default function TeamsView({ role }: { role: string }) {
 
   const availableFor = (usedIds: string[]) => employees.filter(e => !usedIds.includes(e.id));
 
-  // ─── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div>
       <div style={s.toolbar}>
@@ -223,18 +240,24 @@ export default function TeamsView({ role }: { role: string }) {
             </select>
             <input style={s.empInput} type="date"
               value={empForm.hireDate} onChange={e => setEmpForm(f => ({ ...f, hireDate: e.target.value }))} />
-            <button style={s.btnPrimary} onClick={handleCreateEmployee}
-              disabled={empSaving || !empForm.firstName.trim() || !empForm.lastName.trim() || !empForm.rut.trim() || !empForm.position || !empForm.hireDate}>
-              {empSaving ? 'Guardando...' : '+ Agregar'}
+            <input style={s.empInput} type="password" placeholder="Clave usuario *"
+              value={empForm.userPassword} onChange={e => setEmpForm(f => ({ ...f, userPassword: e.target.value }))} />
+            <button style={{ ...s.btnPrimary, gridColumn: 'span 2' }} onClick={handleCreateEmployee}
+              disabled={empSaving || !empForm.firstName.trim() || !empForm.lastName.trim() || !empForm.rut.trim() || !empForm.position || !empForm.hireDate || !empForm.userPassword.trim()}>
+              {empSaving ? 'Guardando...' : '+ Registrar Empleado'}
             </button>
           </div>
+
           {employees.length > 0 ? (
             <div style={s.empList}>
               {employees.map(emp => (
                 <div key={emp.id} style={s.empRow}>
                   <div>
                     <span style={s.empName}>{empFullName(emp)}</span>
-                    <span style={s.empDetail}>{emp.position} · RUT: {emp.rut} · Ingreso: {new Date(emp.hireDate).toLocaleDateString('es-CL')}</span>
+                    <span style={s.empDetail}>
+                      {emp.position} · RUT: {emp.rut} · Ingreso: {new Date(emp.hireDate).toLocaleDateString('es-CL')}
+                    </span>
+                    <span style={s.empId}>ID empleado: {emp.id}</span>
                   </div>
                   <button style={s.btnRemove} onClick={() => handleDeleteEmployee(emp.id, empFullName(emp))}>✕</button>
                 </div>
@@ -330,28 +353,24 @@ export default function TeamsView({ role }: { role: string }) {
               <h3 style={s.modalTitle}>Nuevo Equipo</h3>
               <button style={s.closeBtn} onClick={() => { setShowModal(false); setInitMembers([]); }}>✕</button>
             </div>
-
             {employees.length === 0 && (
               <div style={s.alertWarning}>⚠️ Primero registra empleados para asignar líder e integrantes.</div>
             )}
-
             <form onSubmit={handleCreate}>
               <label style={s.label}>Nombre del equipo *</label>
               <input style={s.input} required value={form.name} placeholder="Nombre del equipo"
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-
               <label style={s.label}>Descripción *</label>
               <textarea style={{ ...s.input, height: '60px', resize: 'vertical' }} required value={form.description}
                 placeholder="Descripción del equipo"
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-
               <div style={s.row}>
                 <div style={{ flex: 1 }}>
                   <label style={s.label}>Área *</label>
                   <select style={s.input} required value={form.area}
                     onChange={e => setForm(f => ({ ...f, area: e.target.value }))}>
                     <option value="">Seleccionar...</option>
-                    {['Backend', 'Frontend', 'DevOps', 'QA', 'Diseño', 'Full Stack'].map(a =>
+                    {['Backend','Frontend','DevOps','QA','Diseño','Full Stack'].map(a =>
                       <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
@@ -365,7 +384,6 @@ export default function TeamsView({ role }: { role: string }) {
                   </select>
                 </div>
               </div>
-
               <label style={s.label}>Integrantes del equipo</label>
               <div style={s.addForm}>
                 <select style={s.inputSmall} value={selEmpId} onChange={e => setSelEmpId(e.target.value)}>
@@ -379,7 +397,6 @@ export default function TeamsView({ role }: { role: string }) {
                 </select>
                 <button type="button" style={s.btnConfirm} onClick={addInitMember} disabled={!selEmpId || !selRole}>+</button>
               </div>
-
               {initMembers.length > 0 && (
                 <div style={s.membersList}>
                   {initMembers.map((m, i) => (
@@ -394,7 +411,6 @@ export default function TeamsView({ role }: { role: string }) {
                   ))}
                 </div>
               )}
-
               <div style={s.modalActions}>
                 <button type="button" style={s.btnSecondary}
                   onClick={() => { setShowModal(false); setInitMembers([]); }}>Cancelar</button>
@@ -420,7 +436,7 @@ const s: Record<string, React.CSSProperties> = {
   btnWarning:     { padding: '7px 14px', border: '1px solid #f59e0b', borderRadius: '6px', background: '#fffbeb', color: '#b45309', cursor: 'pointer', fontSize: '13px', fontWeight: 600, width: '100%' },
   btnSuccess:     { padding: '7px 14px', border: '1px solid #86efac', borderRadius: '6px', background: '#f0fdf4', color: '#15803d', cursor: 'pointer', fontSize: '13px', fontWeight: 600, width: '100%' },
   alertError:     { background: '#fee2e2', color: '#b91c1c', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' },
-  alertSuccess:   { background: '#dcfce7', color: '#15803d', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' },
+  alertSuccess:   { background: '#dcfce7', color: '#15803d', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px', lineHeight: 1.6 },
   alertWarning:   { background: '#fef3c7', color: '#92400e', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' },
   closeBtn:       { border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px', color: 'inherit' },
   loadingText:    { color: '#6b7280', textAlign: 'center', padding: '40px 0' },
@@ -432,7 +448,8 @@ const s: Record<string, React.CSSProperties> = {
   empList:        { display: 'flex', flexDirection: 'column', gap: '6px' },
   empRow:         { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f9fafb', borderRadius: '6px', border: '1px solid #e5e7eb' },
   empName:        { fontSize: '13px', fontWeight: 600, color: '#111827', display: 'block' },
-  empDetail:      { fontSize: '11px', color: '#6b7280' },
+  empDetail:      { fontSize: '11px', color: '#6b7280', display: 'block' },
+  empId:          { fontSize: '10px', color: '#d1d5db', fontFamily: 'monospace', display: 'block' },
   grid:           { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' },
   card:           { background: '#fff', borderRadius: '10px', padding: '20px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', display: 'flex', flexDirection: 'column', gap: '10px' },
   cardHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
