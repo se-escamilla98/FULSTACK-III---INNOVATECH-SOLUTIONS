@@ -79,6 +79,25 @@ services:
 
   # ==================== MICROSERVICIOS ====================
 
+  db-bff:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: user_bff
+      POSTGRES_PASSWORD: password_bff
+      POSTGRES_DB: db_bff
+    ports:
+      - "5436:5432"
+    volumes:
+      - db-bff-data:/var/lib/postgresql/data
+    networks:
+      - innovatech-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_bff -d db_bff"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   ms-tasks:
     build: ./ms-tasks
     image: innovatech-ms-tasks:latest
@@ -134,16 +153,23 @@ services:
     build: ./bff-gateway
     image: innovatech-bff:latest
     restart: always
+    command: sh -c "npx prisma migrate deploy && node dist/app.js"
     environment:
       PORT: 3000
       MS_TASKS_URL: http://ms-tasks:3001
       MS_PROJECTS_URL: http://ms-projects:3002
       MS_TEAMS_URL: http://ms-teams:3003
       JWT_SECRET: ${JWT_SECRET}
+      BFF_DATABASE_URL: postgresql://user_bff:password_bff@db-bff:5432/db_bff
     depends_on:
-      - ms-tasks
-      - ms-projects
-      - ms-teams
+      db-bff:
+        condition: service_healthy
+      ms-tasks:
+        condition: service_started
+      ms-projects:
+        condition: service_started
+      ms-teams:
+        condition: service_started
     networks:
       - innovatech-network
 
@@ -188,7 +214,9 @@ volumes:
   db-tasks-data:
   db-projects-data:
   db-teams-data:
+  db-bff-data:
 
 networks:
   innovatech-network:
     driver: bridge
+
